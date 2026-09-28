@@ -5,9 +5,15 @@ import useTypeService from "@/services/useTypeService";
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
+import BulkImportModal from "@/components/BulkImportModal";
 import UseTypeForm, { emptyUseTypeForm } from "@/components/forms/UseTypeForm";
-import { Plus, Pencil, Trash2, Search, HeartPulse, Loader2, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, HeartPulse, Loader2, RefreshCw, Upload } from "lucide-react";
 import toast from "react-hot-toast";
+
+const useTypeColumns = [
+  { key: "name", label: "Use Type Name", required: true, example: "Cold" },
+  { key: "description", label: "Description", required: false, example: "Common cold, runny nose, sneezing" },
+];
 
 export default function UseTypesPage() {
   const [useTypes, setUseTypes] = useState([]);
@@ -24,15 +30,15 @@ export default function UseTypesPage() {
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: "" });
   const [deleting, setDeleting] = useState(false);
 
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+
   const fetchUseTypes = useCallback(async () => {
     try {
       setLoading(true);
       const params = {};
       if (search) params.search = search;
       const res = await useTypeService.getAll(params);
-      if (res.success) {
-        setUseTypes(res.data);
-      }
+      if (res.success) setUseTypes(res.data);
     } catch (error) {
       toast.error("Failed to fetch indications");
     } finally {
@@ -41,9 +47,7 @@ export default function UseTypesPage() {
   }, [search]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchUseTypes();
-    }, 300);
+    const timer = setTimeout(() => fetchUseTypes(), 300);
     return () => clearTimeout(timer);
   }, [fetchUseTypes]);
 
@@ -126,6 +130,23 @@ export default function UseTypesPage() {
     }
   };
 
+  const handleBulkImport = async (rows) => {
+    let success = 0;
+    let failed = 0;
+    const errors = [];
+    for (const row of rows) {
+      try {
+        const res = await useTypeService.create(row);
+        if (res.success) success++;
+      } catch (error) {
+        failed++;
+        errors.push(`${row.name}: ${error.response?.data?.message || "Failed"}`);
+      }
+    }
+    fetchUseTypes();
+    return { success, failed, errors };
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -138,13 +159,22 @@ export default function UseTypesPage() {
             Manage common medical symptom categories and treatments (e.g., Cough, Joint Pain, Skin Care)
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Use Type
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsBulkImportOpen(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </button>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Use Type
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border p-4">
@@ -163,7 +193,6 @@ export default function UseTypesPage() {
             onClick={fetchUseTypes}
             disabled={loading}
             className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition disabled:opacity-50"
-            title="Refresh use types"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
@@ -205,16 +234,10 @@ export default function UseTypesPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEditModal(ut)}
-                          className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
-                        >
+                        <button onClick={() => openEditModal(ut)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => openDeleteDialog(ut)}
-                          className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
-                        >
+                        <button onClick={() => openDeleteDialog(ut)} className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -234,18 +257,10 @@ export default function UseTypesPage() {
         size="md"
         footer={
           <>
-            <button
-              onClick={closeModal}
-              disabled={submitting}
-              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-            >
+            <button onClick={closeModal} disabled={submitting} className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50">
               Cancel
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50"
-            >
+            <button onClick={handleSubmit} disabled={submitting} className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditMode ? "Update Use Type" : "Create Use Type"}
             </button>
@@ -263,6 +278,14 @@ export default function UseTypesPage() {
         message="Are you sure you want to delete this indication category?"
         itemName={deleteDialog.name}
         loading={deleting}
+      />
+
+      <BulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        title="Bulk Import Use Types"
+        columns={useTypeColumns}
+        onImport={handleBulkImport}
       />
     </div>
   );

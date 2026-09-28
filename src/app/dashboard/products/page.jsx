@@ -5,6 +5,7 @@ import productService from "@/services/productService";
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
+import ProductBulkImportModal from "@/components/ProductBulkImportModal";
 import ProductForm, { emptyProductForm } from "@/components/forms/ProductForm";
 import {
   Plus,
@@ -16,19 +17,16 @@ import {
   RefreshCw,
   AlertTriangle,
   Filter,
+  Upload,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function ProductsPage() {
-  // ============================================
-  // STATE
-  // ============================================
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
 
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -36,7 +34,6 @@ export default function ProductsPage() {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Delete dialog
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
     id: null,
@@ -44,20 +41,16 @@ export default function ProductsPage() {
   });
   const [deleting, setDeleting] = useState(false);
 
-  // ============================================
-  // FETCH PRODUCTS
-  // ============================================
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       const params = {};
       if (search) params.search = search;
       if (typeFilter) params.productType = typeFilter;
-
       const res = await productService.getAll(params);
-      if (res.success) {
-        setProducts(res.data);
-      }
+      if (res.success) setProducts(res.data);
     } catch (error) {
       toast.error("Failed to fetch products");
     } finally {
@@ -66,15 +59,10 @@ export default function ProductsPage() {
   }, [search, typeFilter]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchProducts();
-    }, 300);
+    const timer = setTimeout(() => fetchProducts(), 300);
     return () => clearTimeout(timer);
   }, [fetchProducts]);
 
-  // ============================================
-  // MODAL HANDLERS
-  // ============================================
   const openAddModal = () => {
     setIsEditMode(false);
     setEditingId(null);
@@ -121,13 +109,9 @@ export default function ProductsPage() {
     setFormErrors({});
   };
 
-  // ============================================
-  // VALIDATION
-  // ============================================
   const validateForm = () => {
     const errors = {};
     const isMed = formData.productType === "medicine";
-
     if (isMed && !formData.medicine) errors.medicine = "Medicine is required";
     if (!isMed && !formData.productName.trim())
       errors.productName = "Product name is required";
@@ -138,22 +122,15 @@ export default function ProductsPage() {
       errors.mrp = "Valid MRP is required";
     if (!formData.purchasePrice || Number(formData.purchasePrice) < 0)
       errors.purchasePrice = "Valid purchase price is required";
-
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // ============================================
-  // SUBMIT
-  // ============================================
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
     try {
       setSubmitting(true);
-
       const isMed = formData.productType === "medicine";
-
       const payload = {
         medicine: isMed ? formData.medicine : null,
         productName: !isMed ? formData.productName : "",
@@ -195,9 +172,6 @@ export default function ProductsPage() {
     }
   };
 
-  // ============================================
-  // DELETE
-  // ============================================
   const openDeleteDialog = (product) => {
     const name = product.medicine?.name || product.productName || "Product";
     setDeleteDialog({ isOpen: true, id: product._id, name });
@@ -220,19 +194,57 @@ export default function ProductsPage() {
   };
 
   // ============================================
-  // HELPER: Get display name
+  // BULK IMPORT (using dropdown-selected IDs)
   // ============================================
+  const handleBulkImport = async (rows) => {
+    let success = 0;
+    let failed = 0;
+    const errors = [];
+
+    for (const row of rows) {
+      try {
+        const isMed = row.productType === "medicine";
+
+        const payload = {
+          medicine: isMed ? row.medicine : null,
+          productName: !isMed ? row.productName || "" : "",
+          company: row.company,
+          category: row.category,
+          size: row.size,
+          potency: isMed && row.potency ? row.potency : null,
+          useTypes: row.useTypes || [],
+          mrp: Number(row.mrp) || 0,
+          purchasePrice: Number(row.purchasePrice) || 0,
+          stock: Number(row.stock) || 0,
+          lowStockThreshold: 10,
+          batchNumber: row.batchNumber || "",
+          expiryDate: row.expiryDate || null,
+          rackLocation: row.rackLocation || "",
+          hsnCode: "3004",
+        };
+
+        const res = await productService.create(payload);
+        if (res.success) success++;
+      } catch (error) {
+        failed++;
+        const identifier = row.productName || "Product";
+        errors.push(
+          `${identifier}: ${error.response?.data?.message || error.message}`,
+        );
+      }
+    }
+
+    fetchProducts();
+    return { success, failed, errors };
+  };
+
   const getDisplayName = (product) => {
     if (product.medicine?.name) return product.medicine.name;
     return product.productName || "Unnamed";
   };
 
-  // ============================================
-  // RENDER
-  // ============================================
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -243,18 +255,24 @@ export default function ProductsPage() {
             Manage all stock items — medicines, shampoos, oils, creams & more
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-green-700 hover:bg-green-800
-                     text-white px-5 py-2.5 rounded-lg font-medium
-                     transition shadow-sm shadow-green-700/20"
-        >
-          <Plus className="w-4 h-4" />
-          Add Product
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsBulkImportOpen(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </button>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Product
+          </button>
+        </div>
       </div>
 
-      {/* Search & Filter Bar */}
       <div className="bg-white rounded-xl shadow-sm border p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="relative max-w-md flex-1">
@@ -264,35 +282,24 @@ export default function ProductsPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search products, medicines..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg
-                         text-sm focus:outline-none focus:ring-2 focus:ring-green-500
-                         focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
           </div>
-
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-gray-400 hidden sm:block" />
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full sm:w-44 px-3 py-2 border border-gray-200 rounded-lg
-                         text-sm focus:outline-none focus:ring-2 focus:ring-green-500
-                         bg-white text-gray-700"
+              className="w-full sm:w-44 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="">All Types</option>
               <option value="medicine">💊 Medicines</option>
               <option value="general">🧴 General</option>
             </select>
-
             <button
               onClick={fetchProducts}
               disabled={loading}
-              className="flex items-center justify-center gap-2 px-4 py-2
-                         border border-gray-200 rounded-lg text-gray-600
-                         hover:bg-green-50 hover:text-green-700
-                         hover:border-green-200 transition
-                         disabled:opacity-50"
-              title="Refresh products"
+              className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition disabled:opacity-50"
             >
               <RefreshCw
                 className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
@@ -303,7 +310,6 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Products Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -314,9 +320,6 @@ export default function ProductsPage() {
           <div className="text-center py-20">
             <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 font-medium">No products found</p>
-            <p className="text-gray-400 text-sm mt-1">
-              Click &ldquo;Add Product&rdquo; to create your first product
-            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -361,7 +364,6 @@ export default function ProductsPage() {
                   const isExpired =
                     product.expiryDate &&
                     new Date(product.expiryDate) < new Date();
-
                   return (
                     <tr
                       key={product._id}
@@ -370,8 +372,6 @@ export default function ProductsPage() {
                       <td className="px-4 py-3 text-sm text-gray-400">
                         {index + 1}
                       </td>
-
-                      {/* Product Name */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <span className="text-lg">
@@ -401,7 +401,6 @@ export default function ProductsPage() {
                           </div>
                         </div>
                       </td>
-
                       <td className="px-4 py-3 text-sm text-gray-600 hidden lg:table-cell">
                         {product.company?.name || "-"}
                       </td>
@@ -423,22 +422,15 @@ export default function ProductsPage() {
                       <td className="px-4 py-3 text-sm font-medium text-gray-800">
                         ₹{product.mrp}
                       </td>
-
-                      {/* Stock with warnings */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <span
-                            className={`text-sm font-semibold ${
-                              isLow ? "text-red-600" : "text-gray-800"
-                            }`}
+                            className={`text-sm font-semibold ${isLow ? "text-red-600" : "text-gray-800"}`}
                           >
                             {product.stock}
                           </span>
                           {isLow && (
-                            <AlertTriangle
-                              className="w-3.5 h-3.5 text-red-500"
-                              title="Low Stock"
-                            />
+                            <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
                           )}
                           {isExpired && (
                             <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">
@@ -447,24 +439,20 @@ export default function ProductsPage() {
                           )}
                         </div>
                       </td>
-
                       <td className="px-4 py-3">
                         <StatusBadge isActive={product.isActive} />
                       </td>
-
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openEditModal(product)}
                             className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
-                            title="Edit"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => openDeleteDialog(product)}
                             className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
-                            title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -479,9 +467,6 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {/* ============================================ */}
-      {/* ADD / EDIT MODAL                             */}
-      {/* ============================================ */}
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
@@ -492,18 +477,14 @@ export default function ProductsPage() {
             <button
               onClick={closeModal}
               disabled={submitting}
-              className="px-5 py-2.5 border border-gray-300 rounded-lg
-                         text-sm font-medium text-gray-700
-                         hover:bg-gray-50 transition disabled:opacity-50"
+              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-700
-                         text-white rounded-lg text-sm font-medium
-                         hover:bg-green-800 transition disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditMode ? "Update Product" : "Create Product"}
@@ -518,17 +499,20 @@ export default function ProductsPage() {
         />
       </Modal>
 
-      {/* ============================================ */}
-      {/* DELETE CONFIRMATION                          */}
-      {/* ============================================ */}
       <ConfirmDialog
         isOpen={deleteDialog.isOpen}
         onClose={() => setDeleteDialog({ isOpen: false, id: null, name: "" })}
         onConfirm={handleDelete}
         title="Delete Product"
-        message="Are you sure you want to delete this product from inventory?"
+        message="Are you sure you want to delete this product?"
         itemName={deleteDialog.name}
         loading={deleting}
+      />
+
+      <ProductBulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        onImport={handleBulkImport}
       />
     </div>
   );

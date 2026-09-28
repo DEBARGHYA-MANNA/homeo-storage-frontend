@@ -5,19 +5,16 @@ import medicineService from "@/services/medicineService";
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
-import MedicineForm, {
-  emptyMedicineForm,
-} from "@/components/forms/MedicineForm";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Search,
-  Pill,
-  Loader2,
-  RefreshCw,
-} from "lucide-react";
+import BulkImportModal from "@/components/BulkImportModal";
+import MedicineForm, { emptyMedicineForm } from "@/components/forms/MedicineForm";
+import { Plus, Pencil, Trash2, Search, Pill, Loader2, RefreshCw, Upload } from "lucide-react";
 import toast from "react-hot-toast";
+
+const medicineColumns = [
+  { key: "name", label: "Medicine Name", required: true, example: "Arnica Montana" },
+  { key: "shortName", label: "Short Name", required: false, example: "Arnica" },
+  { key: "commonUses", label: "Common Uses", required: false, example: "Injuries, bruises, muscle pain" },
+];
 
 export default function MedicinesPage() {
   const [medicines, setMedicines] = useState([]);
@@ -31,12 +28,10 @@ export default function MedicinesPage() {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const [deleteDialog, setDeleteDialog] = useState({
-    isOpen: false,
-    id: null,
-    name: "",
-  });
+  const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: "" });
   const [deleting, setDeleting] = useState(false);
+
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
 
   const fetchMedicines = useCallback(async () => {
     try {
@@ -44,9 +39,7 @@ export default function MedicinesPage() {
       const params = {};
       if (search) params.search = search;
       const res = await medicineService.getAll(params);
-      if (res.success) {
-        setMedicines(res.data);
-      }
+      if (res.success) setMedicines(res.data);
     } catch (error) {
       toast.error("Failed to fetch remedies");
     } finally {
@@ -55,9 +48,7 @@ export default function MedicinesPage() {
   }, [search]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchMedicines();
-    }, 300);
+    const timer = setTimeout(() => fetchMedicines(), 300);
     return () => clearTimeout(timer);
   }, [fetchMedicines]);
 
@@ -141,6 +132,23 @@ export default function MedicinesPage() {
     }
   };
 
+  const handleBulkImport = async (rows) => {
+    let success = 0;
+    let failed = 0;
+    const errors = [];
+    for (const row of rows) {
+      try {
+        const res = await medicineService.create(row);
+        if (res.success) success++;
+      } catch (error) {
+        failed++;
+        errors.push(`${row.name}: ${error.response?.data?.message || "Failed"}`);
+      }
+    }
+    fetchMedicines();
+    return { success, failed, errors };
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -153,13 +161,22 @@ export default function MedicinesPage() {
             Manage your catalog of homeopathic source remedies and botanicals
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Medicine
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsBulkImportOpen(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </button>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Medicine
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border p-4">
@@ -178,7 +195,6 @@ export default function MedicinesPage() {
             onClick={fetchMedicines}
             disabled={loading}
             className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition disabled:opacity-50"
-            title="Refresh medicines"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
@@ -202,56 +218,30 @@ export default function MedicinesPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
-                    #
-                  </th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Remedy Name
-                  </th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Short Name
-                  </th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Primary Uses
-                  </th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
-                    Status
-                  </th>
-                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
-                    Actions
-                  </th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">#</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Remedy Name</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Short Name</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Primary Uses</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Status</th>
+                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {medicines.map((med, index) => (
                   <tr key={med._id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 text-sm text-gray-400">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4 font-semibold text-gray-800 text-sm">
-                      {med.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {med.shortName || "-"}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                      {med.commonUses || "-"}
-                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-400">{index + 1}</td>
+                    <td className="px-6 py-4 font-semibold text-gray-800 text-sm">{med.name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{med.shortName || "-"}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{med.commonUses || "-"}</td>
                     <td className="px-6 py-4">
                       <StatusBadge isActive={med.isActive} />
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEditModal(med)}
-                          className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
-                        >
+                        <button onClick={() => openEditModal(med)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => openDeleteDialog(med)}
-                          className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
-                        >
+                        <button onClick={() => openDeleteDialog(med)} className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -271,29 +261,17 @@ export default function MedicinesPage() {
         size="lg"
         footer={
           <>
-            <button
-              onClick={closeModal}
-              disabled={submitting}
-              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-            >
+            <button onClick={closeModal} disabled={submitting} className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50">
               Cancel
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50"
-            >
+            <button onClick={handleSubmit} disabled={submitting} className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditMode ? "Update Medicine" : "Create Medicine"}
             </button>
           </>
         }
       >
-        <MedicineForm
-          formData={formData}
-          onChange={setFormData}
-          errors={formErrors}
-        />
+        <MedicineForm formData={formData} onChange={setFormData} errors={formErrors} />
       </Modal>
 
       <ConfirmDialog
@@ -301,9 +279,17 @@ export default function MedicinesPage() {
         onClose={() => setDeleteDialog({ isOpen: false, id: null, name: "" })}
         onConfirm={handleDelete}
         title="Delete Medicine"
-        message="Are you sure you want to delete this botanical remedy?"
+        message="Are you sure you want to delete this remedy?"
         itemName={deleteDialog.name}
         loading={deleting}
+      />
+
+      <BulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        title="Bulk Import Medicines"
+        columns={medicineColumns}
+        onImport={handleBulkImport}
       />
     </div>
   );

@@ -5,9 +5,17 @@ import potencyService from "@/services/potencyService";
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
+import BulkImportModal from "@/components/BulkImportModal";
 import PotencyForm, { emptyPotencyForm } from "@/components/forms/PotencyForm";
-import { Plus, Pencil, Trash2, Search, Droplets, Loader2, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Droplets, Loader2, RefreshCw, Upload } from "lucide-react";
 import toast from "react-hot-toast";
+
+const potencyColumns = [
+  { key: "name", label: "Potency Name", required: true, example: "200CH" },
+  { key: "scale", label: "Scale", required: true, example: "CH" },
+  { key: "level", label: "Sort Level", required: false, example: "200" },
+  { key: "description", label: "Description", required: false, example: "200th Centesimal" },
+];
 
 export default function PotenciesPage() {
   const [potencies, setPotencies] = useState([]);
@@ -24,15 +32,15 @@ export default function PotenciesPage() {
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: "" });
   const [deleting, setDeleting] = useState(false);
 
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+
   const fetchPotencies = useCallback(async () => {
     try {
       setLoading(true);
       const params = {};
       if (search) params.search = search;
       const res = await potencyService.getAll(params);
-      if (res.success) {
-        setPotencies(res.data);
-      }
+      if (res.success) setPotencies(res.data);
     } catch (error) {
       toast.error("Failed to fetch potencies");
     } finally {
@@ -41,9 +49,7 @@ export default function PotenciesPage() {
   }, [search]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchPotencies();
-    }, 300);
+    const timer = setTimeout(() => fetchPotencies(), 300);
     return () => clearTimeout(timer);
   }, [fetchPotencies]);
 
@@ -88,7 +94,6 @@ export default function PotenciesPage() {
     try {
       setSubmitting(true);
       const payload = { ...formData, level: formData.level ? Number(formData.level) : 0 };
-
       if (isEditMode) {
         const res = await potencyService.update(editingId, payload);
         if (res.success) {
@@ -131,6 +136,24 @@ export default function PotenciesPage() {
     }
   };
 
+  const handleBulkImport = async (rows) => {
+    let success = 0;
+    let failed = 0;
+    const errors = [];
+    for (const row of rows) {
+      try {
+        const payload = { ...row, level: row.level ? Number(row.level) : 0 };
+        const res = await potencyService.create(payload);
+        if (res.success) success++;
+      } catch (error) {
+        failed++;
+        errors.push(`${row.name}: ${error.response?.data?.message || "Failed"}`);
+      }
+    }
+    fetchPotencies();
+    return { success, failed, errors };
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -143,13 +166,22 @@ export default function PotenciesPage() {
             Manage dilution strength and potency levels (e.g., 30CH, 200CH, 1M, Q)
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Add Potency
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsBulkImportOpen(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </button>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Potency
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border p-4">
@@ -168,7 +200,6 @@ export default function PotenciesPage() {
             onClick={fetchPotencies}
             disabled={loading}
             className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition disabled:opacity-50"
-            title="Refresh potencies"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
@@ -216,16 +247,10 @@ export default function PotenciesPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEditModal(potency)}
-                          className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
-                        >
+                        <button onClick={() => openEditModal(potency)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition">
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => openDeleteDialog(potency)}
-                          className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
-                        >
+                        <button onClick={() => openDeleteDialog(potency)} className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -245,18 +270,10 @@ export default function PotenciesPage() {
         size="md"
         footer={
           <>
-            <button
-              onClick={closeModal}
-              disabled={submitting}
-              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-            >
+            <button onClick={closeModal} disabled={submitting} className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50">
               Cancel
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50"
-            >
+            <button onClick={handleSubmit} disabled={submitting} className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditMode ? "Update Potency" : "Create Potency"}
             </button>
@@ -271,9 +288,17 @@ export default function PotenciesPage() {
         onClose={() => setDeleteDialog({ isOpen: false, id: null, name: "" })}
         onConfirm={handleDelete}
         title="Delete Potency"
-        message="Are you sure you want to delete this potency strength?"
+        message="Are you sure you want to delete this potency?"
         itemName={deleteDialog.name}
         loading={deleting}
+      />
+
+      <BulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        title="Bulk Import Potencies"
+        columns={potencyColumns}
+        onImport={handleBulkImport}
       />
     </div>
   );

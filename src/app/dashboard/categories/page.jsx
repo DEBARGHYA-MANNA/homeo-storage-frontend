@@ -5,7 +5,10 @@ import categoryService from "@/services/categoryService";
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
-import CategoryForm, { emptyCategoryForm } from "@/components/forms/CategoryForm";
+import BulkImportModal from "@/components/BulkImportModal";
+import CategoryForm, {
+  emptyCategoryForm,
+} from "@/components/forms/CategoryForm";
 import {
   Plus,
   Pencil,
@@ -14,18 +17,25 @@ import {
   Layers,
   Loader2,
   RefreshCw,
+  Upload,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+const categoryColumns = [
+  { key: "name", label: "Category Name", required: true, example: "Dilution" },
+  {
+    key: "description",
+    label: "Description",
+    required: false,
+    example: "Liquid dilutions in various potencies",
+  },
+];
+
 export default function CategoriesPage() {
-  // ============================================
-  // STATE
-  // ============================================
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -33,7 +43,6 @@ export default function CategoriesPage() {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Delete dialog state
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
     id: null,
@@ -41,36 +50,27 @@ export default function CategoriesPage() {
   });
   const [deleting, setDeleting] = useState(false);
 
-  // ============================================
-  // FETCH CATEGORIES
-  // ============================================
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+
   const fetchCategories = useCallback(async () => {
     try {
       setLoading(true);
       const params = {};
       if (search) params.search = search;
       const res = await categoryService.getAll(params);
-      if (res.success) {
-        setCategories(res.data);
-      }
+      if (res.success) setCategories(res.data);
     } catch (error) {
       toast.error("Failed to fetch categories");
-      console.error(error);
     } finally {
       setLoading(false);
     }
   }, [search]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchCategories();
-    }, 300); // 300ms debounce for search input
+    const timer = setTimeout(() => fetchCategories(), 300);
     return () => clearTimeout(timer);
   }, [fetchCategories]);
 
-  // ============================================
-  // MODAL HANDLERS
-  // ============================================
   const openAddModal = () => {
     setIsEditMode(false);
     setEditingId(null);
@@ -97,60 +97,41 @@ export default function CategoriesPage() {
     setFormErrors({});
   };
 
-  // ============================================
-  // FORM VALIDATION
-  // ============================================
   const validateForm = () => {
     const errors = {};
-    if (!formData.name.trim()) {
-      errors.name = "Category name is required";
-    }
+    if (!formData.name.trim()) errors.name = "Category name is required";
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // ============================================
-  // FORM SUBMIT (Create or Update)
-  // ============================================
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
     try {
       setSubmitting(true);
-
       if (isEditMode) {
         const res = await categoryService.update(editingId, formData);
         if (res.success) {
-          toast.success(res.message || "Category updated successfully");
+          toast.success("Category updated successfully");
           closeModal();
           fetchCategories();
         }
       } else {
         const res = await categoryService.create(formData);
         if (res.success) {
-          toast.success(res.message || "Category created successfully");
+          toast.success("Category created successfully");
           closeModal();
           fetchCategories();
         }
       }
     } catch (error) {
-      toast.error(
-        error.response?.data?.message || "Something went wrong"
-      );
+      toast.error(error.response?.data?.message || "Something went wrong");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ============================================
-  // DELETE HANDLERS
-  // ============================================
   const openDeleteDialog = (category) => {
-    setDeleteDialog({
-      isOpen: true,
-      id: category._id,
-      name: category.name,
-    });
+    setDeleteDialog({ isOpen: true, id: category._id, name: category.name });
   };
 
   const handleDelete = async () => {
@@ -158,25 +139,38 @@ export default function CategoriesPage() {
       setDeleting(true);
       const res = await categoryService.delete(deleteDialog.id);
       if (res.success) {
-        toast.success(res.message || "Category deleted successfully");
+        toast.success("Category deleted successfully");
         setDeleteDialog({ isOpen: false, id: null, name: "" });
         fetchCategories();
       }
     } catch (error) {
-      toast.error(
-        error.response?.data?.message || "Failed to delete category"
-      );
+      toast.error(error.response?.data?.message || "Failed to delete");
     } finally {
       setDeleting(false);
     }
   };
 
-  // ============================================
-  // RENDER UI
-  // ============================================
+  const handleBulkImport = async (rows) => {
+    let success = 0;
+    let failed = 0;
+    const errors = [];
+    for (const row of rows) {
+      try {
+        const res = await categoryService.create(row);
+        if (res.success) success++;
+      } catch (error) {
+        failed++;
+        errors.push(
+          `${row.name}: ${error.response?.data?.message || "Failed"}`,
+        );
+      }
+    }
+    fetchCategories();
+    return { success, failed, errors };
+  };
+
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -188,18 +182,24 @@ export default function CategoriesPage() {
             Tincture, Tablets, etc.)
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-2 bg-green-700 hover:bg-green-800
-                     text-white px-5 py-2.5 rounded-lg font-medium
-                     transition shadow-sm shadow-green-700/20"
-        >
-          <Plus className="w-4 h-4" />
-          Add Category
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsBulkImportOpen(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </button>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-lg font-medium transition shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Add Category
+          </button>
+        </div>
       </div>
 
-      {/* Search Bar */}
       <div className="bg-white rounded-xl shadow-sm border p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="relative max-w-md flex-1">
@@ -209,21 +209,13 @@ export default function CategoriesPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search categories..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg
-                       text-sm focus:outline-none focus:ring-2 focus:ring-green-500
-                       focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
           </div>
-          {/* Refresh Button */}
           <button
             onClick={fetchCategories}
             disabled={loading}
-            className="flex items-center justify-center gap-2 px-4 py-2
-                 border border-gray-200 rounded-lg text-gray-600
-                 hover:bg-green-50 hover:text-green-700
-                 hover:border-green-200 transition
-                 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Refresh companies"
+            className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
@@ -231,7 +223,6 @@ export default function CategoriesPage() {
         </div>
       </div>
 
-      {/* Categories Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -242,9 +233,6 @@ export default function CategoriesPage() {
           <div className="text-center py-20">
             <Layers className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 font-medium">No categories found</p>
-            <p className="text-gray-400 text-sm mt-1">
-              Click &ldquo;Add Category&rdquo; to create your first category
-            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -290,21 +278,15 @@ export default function CategoriesPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        {/* Edit */}
                         <button
                           onClick={() => openEditModal(category)}
-                          className="p-2 rounded-lg hover:bg-blue-50
-                                     text-blue-600 transition"
-                          title="Edit"
+                          className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
-                        {/* Delete */}
                         <button
                           onClick={() => openDeleteDialog(category)}
-                          className="p-2 rounded-lg hover:bg-red-50
-                                     text-red-600 transition"
-                          title="Delete"
+                          className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -318,9 +300,6 @@ export default function CategoriesPage() {
         )}
       </div>
 
-      {/* ============================================ */}
-      {/* ADD / EDIT MODAL                             */}
-      {/* ============================================ */}
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
@@ -331,18 +310,14 @@ export default function CategoriesPage() {
             <button
               onClick={closeModal}
               disabled={submitting}
-              className="px-5 py-2.5 border border-gray-300 rounded-lg
-                         text-sm font-medium text-gray-700
-                         hover:bg-gray-50 transition disabled:opacity-50"
+              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={submitting}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-700
-                         text-white rounded-lg text-sm font-medium
-                         hover:bg-green-800 transition disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditMode ? "Update Category" : "Create Category"}
@@ -357,9 +332,6 @@ export default function CategoriesPage() {
         />
       </Modal>
 
-      {/* ============================================ */}
-      {/* DELETE CONFIRMATION DIALOG                   */}
-      {/* ============================================ */}
       <ConfirmDialog
         isOpen={deleteDialog.isOpen}
         onClose={() => setDeleteDialog({ isOpen: false, id: null, name: "" })}
@@ -368,6 +340,14 @@ export default function CategoriesPage() {
         message="Are you sure you want to delete this category?"
         itemName={deleteDialog.name}
         loading={deleting}
+      />
+
+      <BulkImportModal
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        title="Bulk Import Categories"
+        columns={categoryColumns}
+        onImport={handleBulkImport}
       />
     </div>
   );

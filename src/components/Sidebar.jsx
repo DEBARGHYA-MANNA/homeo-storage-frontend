@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Stethoscope,
+  IndianRupee,
 } from "lucide-react";
 
 // ============================================
@@ -75,6 +76,11 @@ const reportItems = [
     label: "Expired",
     href: "/dashboard/reports/expired",
     icon: Clock,
+  },
+  {
+    label: "Sales",
+    href: "/dashboard/sales",
+    icon: IndianRupee,
   },
 ];
 
