@@ -15,14 +15,7 @@ const emptyForm = {
   size: "",
   potency: "",
   useTypes: [],
-  mrp: "",
-  purchasePrice: "",
-  discount: "0",
-  stock: "0",
   lowStockThreshold: "10",
-  batchNumber: "",
-  expiryDate: "",
-  rackLocation: "",
   hsnCode: "3004",
 };
 
@@ -39,7 +32,6 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
   });
   const [loadingRefs, setLoadingRefs] = useState(true);
 
-  // Fetch all reference data for dropdowns
   useEffect(() => {
     const loadRefs = async () => {
       try {
@@ -53,14 +45,7 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
             referenceService.getPotencies(),
             referenceService.getUseTypes(),
           ]);
-        setRefs({
-          medicines,
-          companies,
-          categories,
-          sizes,
-          potencies,
-          useTypes,
-        });
+        setRefs({ medicines, companies, categories, sizes, potencies, useTypes });
       } catch (error) {
         console.error("Failed to load reference data:", error);
       } finally {
@@ -77,7 +62,6 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
       [name]: type === "checkbox" ? checked : value,
     };
 
-    // If switching product type, clear irrelevant fields
     if (name === "productType") {
       if (value === "general") {
         updated.medicine = "";
@@ -107,9 +91,7 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
 
   return (
     <div className="space-y-5">
-      {/* ============================================ */}
-      {/* PRODUCT TYPE TOGGLE                          */}
-      {/* ============================================ */}
+      {/* Product Type Selection */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Product Type <span className="text-red-500">*</span>
@@ -117,32 +99,22 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() =>
-              handleChange({
-                target: { name: "productType", value: "medicine" },
-              })
-            }
+            onClick={() => handleChange({ target: { name: "productType", value: "medicine" } })}
             className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium border-2 transition
-              ${
-                isMedicine
-                  ? "border-green-600 bg-green-50 text-green-700"
-                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+              ${isMedicine
+                ? "border-green-600 bg-green-50 text-green-700"
+                : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
               }`}
           >
             💊 Medicine Product
           </button>
           <button
             type="button"
-            onClick={() =>
-              handleChange({
-                target: { name: "productType", value: "general" },
-              })
-            }
+            onClick={() => handleChange({ target: { name: "productType", value: "general" } })}
             className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium border-2 transition
-              ${
-                !isMedicine
-                  ? "border-blue-600 bg-blue-50 text-blue-700"
-                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+              ${!isMedicine
+                ? "border-blue-600 bg-blue-50 text-blue-700"
+                : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
               }`}
           >
             🧴 General Product
@@ -150,12 +122,10 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
         </div>
       </div>
 
-      {/* ============================================ */}
-      {/* IDENTITY SECTION                             */}
-      {/* ============================================ */}
+      {/* Identity Configuration */}
       <div className="border-t pt-4">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          Product Identity
+          Identity & Description
         </h3>
 
         {isMedicine ? (
@@ -186,9 +156,7 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
         )}
       </div>
 
-      {/* ============================================ */}
-      {/* CLASSIFICATION SECTION                       */}
-      {/* ============================================ */}
+      {/* Categorization & Masters */}
       <div className="border-t pt-4">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
           Classification
@@ -257,7 +225,6 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
           )}
         </div>
 
-        {/* Use Types Multi-Select */}
         <div className="mt-4 relative">
           <MultiSelect
             label="Use Types / Indications"
@@ -269,68 +236,13 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
         </div>
       </div>
 
-      {/* ============================================ */}
-      {/* PRICING SECTION                              */}
-      {/* ============================================ */}
+      {/* Threshold & Compliance */}
       <div className="border-t pt-4">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          Pricing
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <FormField
-            label="MRP (₹)"
-            name="mrp"
-            type="number"
-            value={formData.mrp}
-            onChange={handleChange}
-            placeholder="0.00"
-            required
-            error={errors.mrp}
-          />
-
-          <FormField
-            label="Purchase Price (₹)"
-            name="purchasePrice"
-            type="number"
-            value={formData.purchasePrice}
-            onChange={handleChange}
-            placeholder="0.00"
-            required
-            error={errors.purchasePrice}
-          />
-
-          <FormField
-            label="Discount (%)"
-            name="discount"
-            type="number"
-            value={formData.discount}
-            onChange={handleChange}
-            placeholder="0"
-          />
-        </div>
-      </div>
-
-      {/* ============================================ */}
-      {/* STOCK SECTION                                */}
-      {/* ============================================ */}
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          Stock & Inventory
+          Settings & Compliance
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
-            label="Current Stock"
-            name="stock"
-            type="number"
-            value={formData.stock}
-            onChange={handleChange}
-            placeholder="0"
-            required
-            error={errors.stock}
-          />
-
           <FormField
             label="Low Stock Alert Threshold"
             name="lowStockThreshold"
@@ -338,52 +250,6 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
             value={formData.lowStockThreshold}
             onChange={handleChange}
             placeholder="10"
-          />
-        </div>
-      </div>
-
-      {/* ============================================ */}
-      {/* BATCH & EXPIRY SECTION                       */}
-      {/* ============================================ */}
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          Batch & Expiry
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
-            label="Batch Number"
-            name="batchNumber"
-            value={formData.batchNumber}
-            onChange={handleChange}
-            placeholder="e.g., B2024-0512"
-          />
-
-          <FormField
-            label="Expiry Date"
-            name="expiryDate"
-            type="date"
-            value={formData.expiryDate}
-            onChange={handleChange}
-          />
-        </div>
-      </div>
-
-      {/* ============================================ */}
-      {/* STORAGE SECTION                              */}
-      {/* ============================================ */}
-      <div className="border-t pt-4">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-          Storage & Tax
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
-            label="Rack Location"
-            name="rackLocation"
-            value={formData.rackLocation}
-            onChange={handleChange}
-            placeholder="e.g., A3-R2"
           />
 
           <FormField

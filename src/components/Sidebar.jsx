@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Stethoscope,
   IndianRupee,
+  ArrowUpDown,
 } from "lucide-react";
 
 // ============================================
@@ -81,6 +82,11 @@ const reportItems = [
     label: "Sales",
     href: "/dashboard/sales",
     icon: IndianRupee,
+  },
+  {
+    label: "Stock Manager",
+    href: "/dashboard/stock",
+    icon: ArrowUpDown,
   },
 ];
 
