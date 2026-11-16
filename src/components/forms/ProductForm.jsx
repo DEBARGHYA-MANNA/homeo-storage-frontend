@@ -4,19 +4,19 @@ import { useState, useEffect } from "react";
 import FormField from "@/components/FormField";
 import MultiSelect from "@/components/MultiSelect";
 import referenceService from "@/services/referenceService";
-import { Loader2 } from "lucide-react";
+import { Loader2, Pill, FlaskConical } from "lucide-react";
 
 const emptyForm = {
-  productType: "medicine", // "medicine" or "general"
+  productType: "medicine",
   medicine: "",
   productName: "",
-  company: "",
+  company: [],
   category: "",
-  size: "",
+  size: [],
   potency: "",
   useTypes: [],
-  lowStockThreshold: "10",
-  hsnCode: "3004",
+  lowStockThreshold: "12",
+  hsnCode: "",
 };
 
 export { emptyForm as emptyProductForm };
@@ -45,7 +45,14 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
             referenceService.getPotencies(),
             referenceService.getUseTypes(),
           ]);
-        setRefs({ medicines, companies, categories, sizes, potencies, useTypes });
+        setRefs({
+          medicines,
+          companies,
+          categories,
+          sizes,
+          potencies,
+          useTypes,
+        });
       } catch (error) {
         console.error("Failed to load reference data:", error);
       } finally {
@@ -74,6 +81,14 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
     onChange(updated);
   };
 
+  const handleCompanyChange = (selectedIds) => {
+    onChange({ ...formData, company: selectedIds });
+  };
+
+  const handleSizeChange = (selectedIds) => {
+    onChange({ ...formData, size: selectedIds });
+  };
+
   const handleUseTypeChange = (selectedIds) => {
     onChange({ ...formData, useTypes: selectedIds });
   };
@@ -99,25 +114,37 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => handleChange({ target: { name: "productType", value: "medicine" } })}
-            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium border-2 transition
-              ${isMedicine
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+            onClick={() =>
+              handleChange({
+                target: { name: "productType", value: "medicine" },
+              })
+            }
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium border-2 transition
+              ${
+                isMedicine
+                  ? "border-green-600 bg-green-50 text-green-700"
+                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
               }`}
           >
-            💊 Medicine Product
+            <Pill className="w-4 h-4" />
+            Medicine Product
           </button>
           <button
             type="button"
-            onClick={() => handleChange({ target: { name: "productType", value: "general" } })}
-            className={`flex-1 py-2.5 px-4 rounded-lg text-sm font-medium border-2 transition
-              ${!isMedicine
-                ? "border-blue-600 bg-blue-50 text-blue-700"
-                : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+            onClick={() =>
+              handleChange({
+                target: { name: "productType", value: "general" },
+              })
+            }
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg text-sm font-medium border-2 transition
+              ${
+                !isMedicine
+                  ? "border-blue-600 bg-blue-50 text-blue-700"
+                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
               }`}
           >
-            🧴 General Product
+            <FlaskConical className="w-4 h-4" />
+            General Product
           </button>
         </div>
       </div>
@@ -162,22 +189,20 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
           Classification
         </h3>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField
+        {/* Company — MultiSelect (1 or more) */}
+        <div className="mb-4 relative">
+          <MultiSelect
             label="Company"
-            name="company"
-            type="select"
-            value={formData.company}
-            onChange={handleChange}
-            placeholder="Select company..."
+            options={refs.companies}
+            selected={formData.company}
+            onChange={handleCompanyChange}
+            placeholder="Select company(s)..."
             required
             error={errors.company}
-            options={refs.companies.map((c) => ({
-              value: c._id,
-              label: c.name,
-            }))}
           />
+        </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             label="Category"
             name="category"
@@ -190,21 +215,6 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
             options={refs.categories.map((c) => ({
               value: c._id,
               label: c.name,
-            }))}
-          />
-
-          <FormField
-            label="Size / Packaging"
-            name="size"
-            type="select"
-            value={formData.size}
-            onChange={handleChange}
-            placeholder="Select size..."
-            required
-            error={errors.size}
-            options={refs.sizes.map((s) => ({
-              value: s._id,
-              label: s.name,
             }))}
           />
 
@@ -225,6 +235,20 @@ export default function ProductForm({ formData, onChange, errors = {} }) {
           )}
         </div>
 
+        {/* Size — MultiSelect */}
+        <div className="mt-4 relative">
+          <MultiSelect
+            label="Size / Packaging"
+            options={refs.sizes}
+            selected={formData.size}
+            onChange={handleSizeChange}
+            placeholder="Select size(s)..."
+            required
+            error={errors.size}
+          />
+        </div>
+
+        {/* Use Types — MultiSelect */}
         <div className="mt-4 relative">
           <MultiSelect
             label="Use Types / Indications"
