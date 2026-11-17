@@ -18,8 +18,16 @@ import {
   AlertTriangle,
   Filter,
   Upload,
+  Pill,
+  FlaskConical,
 } from "lucide-react";
 import toast from "react-hot-toast";
+
+const toArray = (val) => {
+  if (Array.isArray(val)) return val;
+  if (val) return [val];
+  return [];
+};
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -78,9 +86,9 @@ export default function ProductsPage() {
       productType: product.medicine ? "medicine" : "general",
       medicine: product.medicine?._id || "",
       productName: product.productName || "",
-      company: product.company?._id || "",
+      company: toArray(product.company).map((c) => c._id || c),
       category: product.category?._id || "",
-      size: product.size?._id || "",
+      size: toArray(product.size).map((s) => s._id || s),
       potency: product.potency?._id || "",
       useTypes: product.useTypes?.map((u) => u._id) || [],
       lowStockThreshold:
@@ -105,9 +113,11 @@ export default function ProductsPage() {
     if (isMed && !formData.medicine) errors.medicine = "Medicine is required";
     if (!isMed && !formData.productName.trim())
       errors.productName = "Product name is required";
-    if (!formData.company) errors.company = "Company is required";
+    if (!formData.company || formData.company.length === 0)
+      errors.company = "At least one company is required";
     if (!formData.category) errors.category = "Category is required";
-    if (!formData.size) errors.size = "Size selection is required";
+    if (!formData.size || formData.size.length === 0)
+      errors.size = "At least one size is required";
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -120,10 +130,10 @@ export default function ProductsPage() {
       const payload = {
         medicine: isMed ? formData.medicine : null,
         productName: !isMed ? formData.productName : "",
-        company: formData.company,
-        category: formData.category,
-        size: formData.size,
-        potency: isMed && formData.potency ? formData.potency : null,
+        companies: formData.company,
+        categories: formData.category ? [formData.category] : [],
+        sizes: formData.size,
+        potencies: isMed && formData.potency ? [formData.potency] : [],
         useTypes: formData.useTypes,
         lowStockThreshold: Number(formData.lowStockThreshold) || 10,
         hsnCode: formData.hsnCode,
@@ -139,7 +149,7 @@ export default function ProductsPage() {
       } else {
         const res = await productService.create(payload);
         if (res.success) {
-          toast.success("Product registered successfully");
+          toast.success(`${res.summary?.created || 1} variant(s) registered`);
           closeModal();
           fetchProducts();
         }
@@ -180,21 +190,22 @@ export default function ProductsPage() {
     for (const row of rows) {
       try {
         const isMed = row.productType === "medicine";
+        const toArr = (v) => (Array.isArray(v) ? v : v ? [v] : []);
 
         const payload = {
           medicine: isMed ? row.medicine : null,
           productName: !isMed ? row.productName || "" : "",
-          company: row.company,
-          category: row.category,
-          size: row.size,
-          potency: isMed && row.potency ? row.potency : null,
-          useTypes: row.useTypes || [],
+          companies: toArr(row.company),
+          categories: toArr(row.category),
+          sizes: toArr(row.size),
+          potencies: isMed ? toArr(row.potency) : [],
+          useTypes: toArr(row.useTypes),
           lowStockThreshold: Number(row.lowStockThreshold) || 10,
           hsnCode: row.hsnCode || "3004",
         };
 
         const res = await productService.create(payload);
-        if (res.success) success++;
+        if (res.success) success += res.summary?.created || 1;
       } catch (error) {
         failed++;
         const identifier = row.productName || "Product";
@@ -266,8 +277,8 @@ export default function ProductsPage() {
               className="w-full sm:w-44 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="">All Types</option>
-              <option value="medicine">💊 Medicines</option>
-              <option value="general">🧴 General Items</option>
+              <option value="medicine">Medicines</option>
+              <option value="general">General Items</option>
             </select>
             <button
               onClick={fetchProducts}
@@ -340,6 +351,10 @@ export default function ProductsPage() {
                   const isExpired =
                     product.expiryDate &&
                     new Date(product.expiryDate) < new Date();
+
+                  const companies = toArray(product.company);
+                  const sizes = toArray(product.size);
+
                   return (
                     <tr
                       key={product._id}
@@ -350,9 +365,11 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-lg">
-                            {product.medicine ? "💊" : "🧴"}
-                          </span>
+                          {product.medicine ? (
+                            <Pill className="w-5 h-5 text-green-600 shrink-0" />
+                          ) : (
+                            <FlaskConical className="w-5 h-5 text-blue-500 shrink-0" />
+                          )}
                           <div>
                             <p className="text-sm font-semibold text-gray-800">
                               {getDisplayName(product)}
@@ -377,15 +394,45 @@ export default function ProductsPage() {
                           </div>
                         </div>
                       </td>
+
                       <td className="px-4 py-3 text-sm text-gray-600 hidden lg:table-cell">
-                        {product.company?.name || "-"}
+                        {companies.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {companies.map((c) => (
+                              <span
+                                key={c._id || c}
+                                className="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-xs"
+                              >
+                                {c.name || c}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
                       </td>
+
                       <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">
                         {product.category?.name || "-"}
                       </td>
+
                       <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">
-                        {product.size?.name || "-"}
+                        {sizes.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {sizes.map((s) => (
+                              <span
+                                key={s._id || s}
+                                className="bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded text-xs"
+                              >
+                                {s.name || s}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          "-"
+                        )}
                       </td>
+
                       <td className="px-4 py-3 text-sm hidden lg:table-cell">
                         {product.potency ? (
                           <span className="bg-purple-50 text-purple-700 px-2 py-0.5 rounded text-xs font-medium">
