@@ -231,7 +231,7 @@ export default function NewSalePage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Type medicine name, product name..."
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg
+                className="w-full pl-10 pr-4 py-3 text-slate-900 border border-gray-200 rounded-lg
                            text-base focus:outline-none focus:ring-2 focus:ring-green-500
                            focus:border-transparent"
                 autoFocus

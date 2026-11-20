@@ -156,7 +156,8 @@ export default function UseTypesPage() {
             Use Types
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Manage common medical symptom categories and treatments (e.g., Cough, Joint Pain, Skin Care)
+            Manage common medical symptom categories and treatments (e.g.,
+            Cough, Joint Pain, Skin Care)
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -186,7 +187,7 @@ export default function UseTypesPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search indications..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 text-slate-900 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
           </div>
           <button
@@ -216,28 +217,50 @@ export default function UseTypesPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">#</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Indication Name</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Description</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Status</th>
-                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Actions</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
+                    #
+                  </th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Indication Name
+                  </th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
+                    Status
+                  </th>
+                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {useTypes.map((ut, index) => (
                   <tr key={ut._id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 text-sm text-gray-400">{index + 1}</td>
-                    <td className="px-6 py-4 font-semibold text-gray-800 text-sm">{ut.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{ut.description || "-"}</td>
+                    <td className="px-6 py-4 text-sm text-gray-400">
+                      {index + 1}
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-gray-800 text-sm">
+                      {ut.name}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                      {ut.description || "-"}
+                    </td>
                     <td className="px-6 py-4">
                       <StatusBadge isActive={ut.isActive} />
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEditModal(ut)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition">
+                        <button
+                          onClick={() => openEditModal(ut)}
+                          className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
+                        >
                           <Pencil className="w-4 h-4" />
                         </button>
-                        <button onClick={() => openDeleteDialog(ut)} className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition">
+                        <button
+                          onClick={() => openDeleteDialog(ut)}
+                          className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -257,17 +280,29 @@ export default function UseTypesPage() {
         size="md"
         footer={
           <>
-            <button onClick={closeModal} disabled={submitting} className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50">
+            <button
+              onClick={closeModal}
+              disabled={submitting}
+              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+            >
               Cancel
             </button>
-            <button onClick={handleSubmit} disabled={submitting} className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50"
+            >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditMode ? "Update Use Type" : "Create Use Type"}
             </button>
           </>
         }
       >
-        <UseTypeForm formData={formData} onChange={setFormData} errors={formErrors} />
+        <UseTypeForm
+          formData={formData}
+          onChange={setFormData}
+          errors={formErrors}
+        />
       </Modal>
 
       <ConfirmDialog
