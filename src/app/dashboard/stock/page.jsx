@@ -279,7 +279,7 @@ export default function StockManagerPage() {
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search by product name..."
                   className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-lg text-sm
-                             bg-gray-50 text-gray-800
+                             bg-gray-50 text-slate-900
                              focus:outline-none focus:border-green-500 focus:bg-white
                              transition placeholder:text-gray-400"
                 />

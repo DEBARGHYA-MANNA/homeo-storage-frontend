@@ -1,43 +1,309 @@
 "use client";
-
-import { useState, useEffect } from "react";
-import Modal from "@/components/Modal";
-import { GridSelectCell, GridMultiSelectCell } from "@/components/GridSelectCell";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import referenceService from "@/services/referenceService";
 import {
+  ArrowLeft,
   Upload,
   Plus,
   Trash2,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Loader2,
   Copy,
-  ArrowRight,
+  CheckCircle2,
+  AlertCircle,
+  Download,
+  Sparkles,
+  X,
+  Loader2,
+  Pill,
+  FlaskConical,
+  Search,
+  ChevronDown,
+  Check,
 } from "lucide-react";
-import toast from "react-hot-toast";
 
-const createEmptyRow = () => ({
-  productType: "medicine", // "medicine" or "general"
-  productName: "",
+const createEmptyRow = (defaults = {}) => ({
+  id: crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).substring(2, 9),
+  productType: defaults.productType || "medicine",
   medicine: "",
-  company: "",
-  category: "",
-  size: "",
-  potency: "",
-  useTypes: [],
-  lowStockThreshold: "10",
-  hsnCode: "3004",
+  productName: "",
+  company: [...(defaults.company || [])],
+  category: defaults.category || "",
+  size: [...(defaults.size || [])],
+  potency: defaults.productType === "general" ? "" : defaults.potency || "",
+  useTypes: [...(defaults.useTypes || [])],
+  lowStockThreshold: defaults.lowStockThreshold ?? "12",
 });
 
-export default function ProductBulkImportModal({
-  isOpen,
-  onClose,
-  onImport,
+/**
+ * Searchable Single-Select Dropdown (Medicine, Category, Potency)
+ */
+function SearchableSelect({
+  value,
+  options = [],
+  onChange,
+  placeholder = "Select...",
+  disabled = false,
 }) {
-  const [step, setStep] = useState(1); // 1: Grid, 2: Preview, 3: Results
-  const [gridRows, setGridRows] = useState([createEmptyRow()]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = useMemo(
+    () => options.find((opt) => opt.value === value),
+    [options, value],
+  );
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const q = search.toLowerCase();
+    return options.filter((opt) => opt.label.toLowerCase().includes(q));
+  }, [options, search]);
+
+  if (disabled) {
+    return (
+      <div className="w-full px-3 py-2 text-xs font-medium text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed">
+        N/A for Patents
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <div
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between gap-1 px-2.5 py-2 text-xs font-medium bg-white border border-slate-300 rounded-lg cursor-pointer hover:border-slate-400 focus-within:ring-2 focus-within:ring-green-600 focus-within:border-green-600"
+      >
+        <span
+          className={`truncate ${
+            selectedOption ? "text-slate-900 font-semibold" : "text-slate-500"
+          }`}
+        >
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          {value && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange("");
+              }}
+              className="text-slate-400 hover:text-red-600 p-0.5"
+              title="Clear selection"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <ChevronDown className="w-3.5 h-3.5 text-slate-600" />
+        </div>
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full min-w-[220px] bg-white border border-slate-300 rounded-xl shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-slate-200 bg-slate-50">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Type to search..."
+                className="w-full pl-8 pr-2.5 py-1.5 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-lg placeholder:text-slate-400 focus:ring-2 focus:ring-green-600 outline-none"
+              />
+            </div>
+          </div>
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-100">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-slate-500 text-center">
+                No matching options found
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isSelected = opt.value === value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(opt.value);
+                      setIsOpen(false);
+                      setSearch("");
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition ${
+                      isSelected
+                        ? "bg-green-50 text-green-950 font-bold"
+                        : "bg-white text-slate-900 font-medium hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    {isSelected && (
+                      <Check className="w-3.5 h-3.5 text-green-700 shrink-0" />
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Searchable Multi-Select Dropdown (Company, Size, Use Types)
+ */
+function SearchableMultiSelect({
+  selected = [],
+  options = [],
+  onChange,
+  placeholder = "Select options...",
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const normalizedOptions = useMemo(
+    () =>
+      options.map((opt) => ({
+        value: opt._id || opt.value,
+        label: opt.name || opt.label,
+      })),
+    [options],
+  );
+
+  const selectedItems = useMemo(
+    () => normalizedOptions.filter((o) => selected.includes(o.value)),
+    [normalizedOptions, selected],
+  );
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return normalizedOptions;
+    const q = search.toLowerCase();
+    return normalizedOptions.filter((o) => o.label.toLowerCase().includes(q));
+  }, [normalizedOptions, search]);
+
+  const toggleValue = (val) => {
+    if (selected.includes(val)) {
+      onChange(selected.filter((item) => item !== val));
+    } else {
+      onChange([...selected, val]);
+    }
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-full space-y-1.5">
+      {selectedItems.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {selectedItems.map((item) => (
+            <span
+              key={item.value}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold bg-green-100 text-green-950 border border-green-300"
+            >
+              {item.label}
+              <button
+                type="button"
+                onClick={() => toggleValue(item.value)}
+                className="text-green-800 hover:text-red-600 focus:outline-none"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full flex items-center justify-between gap-1 px-2.5 py-2 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-lg hover:border-slate-400 focus:ring-2 focus:ring-green-600 outline-none"
+      >
+        <span className="truncate text-slate-700 font-medium">
+          {selectedItems.length > 0
+            ? `${selectedItems.length} selected`
+            : placeholder}
+        </span>
+        <ChevronDown className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full min-w-[220px] bg-white border border-slate-300 rounded-xl shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-slate-200 bg-slate-50">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search options..."
+                className="w-full pl-8 pr-2.5 py-1.5 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-lg placeholder:text-slate-400 focus:ring-2 focus:ring-green-600 outline-none"
+              />
+            </div>
+          </div>
+          <div className="max-h-52 overflow-y-auto divide-y divide-slate-100">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-slate-500 text-center">
+                No matching options
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isChecked = selected.includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => toggleValue(opt.value)}
+                    className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs transition ${
+                      isChecked
+                        ? "bg-green-50 text-green-950 font-bold"
+                        : "bg-white text-slate-900 font-medium hover:bg-slate-100"
+                    }`}
+                  >
+                    <span className="truncate">{opt.label}</span>
+                    <div
+                      className={`w-4 h-4 rounded flex items-center justify-center border ${
+                        isChecked
+                          ? "bg-green-600 border-green-600 text-white"
+                          : "border-slate-300 bg-white"
+                      }`}
+                    >
+                      {isChecked && <Check className="w-3 h-3" />}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ProductBulkImportModal({ isOpen, onClose, onImport }) {
   const [refs, setRefs] = useState({
     medicines: [],
     companies: [],
@@ -46,14 +312,27 @@ export default function ProductBulkImportModal({
     potencies: [],
     useTypes: [],
   });
-  const [loadingRefs, setLoadingRefs] = useState(false);
+  const [loadingRefs, setLoadingRefs] = useState(true);
+  const [rows, setRows] = useState([
+    createEmptyRow(),
+    createEmptyRow(),
+    createEmptyRow(),
+  ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const [importing, setImporting] = useState(false);
-  const [results, setResults] = useState(null);
+  const [defaults, setDefaults] = useState({
+    productType: "medicine",
+    company: [],
+    category: "",
+    size: [],
+    potency: "",
+    useTypes: [],
+    lowStockThreshold: "12",
+  });
 
   useEffect(() => {
     if (!isOpen) return;
-
     const loadRefs = async () => {
       try {
         setLoadingRefs(true);
@@ -66,9 +345,19 @@ export default function ProductBulkImportModal({
             referenceService.getPotencies(),
             referenceService.getUseTypes(),
           ]);
-        setRefs({ medicines, companies, categories, sizes, potencies, useTypes });
-      } catch (error) {
-        toast.error("Failed to load master lookup options");
+        setRefs({
+          medicines: medicines || [],
+          companies: companies || [],
+          categories: categories || [],
+          sizes: sizes || [],
+          potencies: potencies || [],
+          useTypes: useTypes || [],
+        });
+      } catch (err) {
+        console.error("Failed to load reference data:", err);
+        setError(
+          "Failed to load catalog masters. Please refresh and try again.",
+        );
       } finally {
         setLoadingRefs(false);
       }
@@ -76,332 +365,672 @@ export default function ProductBulkImportModal({
     loadRefs();
   }, [isOpen]);
 
-  const addRow = () => {
-    setGridRows([...gridRows, createEmptyRow()]);
+  const medicineOptions = useMemo(
+    () =>
+      refs.medicines.map((m) => ({
+        value: m._id,
+        label: `${m.name}${m.shortName ? ` (${m.shortName})` : ""}`,
+      })),
+    [refs.medicines],
+  );
+
+  const categoryOptions = useMemo(
+    () =>
+      refs.categories.map((c) => ({
+        value: c._id,
+        label: c.name,
+      })),
+    [refs.categories],
+  );
+
+  const potencyOptions = useMemo(
+    () =>
+      refs.potencies.map((p) => ({
+        value: p._id,
+        label: p.name,
+      })),
+    [refs.potencies],
+  );
+
+  if (!isOpen) return null;
+
+  const handleRowChange = (id, field, value) => {
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row;
+        const updated = { ...row, [field]: value };
+        if (field === "productType") {
+          if (value === "general") {
+            updated.medicine = "";
+            updated.potency = "";
+          } else {
+            updated.productName = "";
+          }
+        }
+        return updated;
+      }),
+    );
   };
 
-  const removeRow = (index) => {
-    if (gridRows.length <= 1) return;
-    setGridRows(gridRows.filter((_, i) => i !== index));
-  };
-
-  const updateCell = (rowIndex, key, value) => {
-    const updated = [...gridRows];
-    updated[rowIndex][key] = value;
-
-    if (key === "productType") {
-      if (value === "general") {
-        updated[rowIndex].medicine = "";
-        updated[rowIndex].potency = "";
-      } else {
-        updated[rowIndex].productName = "";
-      }
-    }
-
-    setGridRows(updated);
+  const addRows = (count = 1) => {
+    const newRows = Array.from({ length: count }, () =>
+      createEmptyRow(defaults),
+    );
+    setRows((prev) => [...prev, ...newRows]);
   };
 
   const duplicateRow = (index) => {
-    const rowToCopy = { ...gridRows[index], useTypes: [...gridRows[index].useTypes] };
-    const updated = [...gridRows];
-    updated.splice(index + 1, 0, rowToCopy);
-    setGridRows(updated);
-    toast.success("Row duplicated");
+    const source = rows[index];
+    const cloned = {
+      ...source,
+      id: crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2, 9),
+      company: [...source.company],
+      size: [...source.size],
+      useTypes: [...source.useTypes],
+    };
+    const updated = [...rows];
+    updated.splice(index + 1, 0, cloned);
+    setRows(updated);
   };
 
-  const validateRows = (rows) => {
-    const valid = [];
-    const invalid = [];
-
-    rows.forEach((row, index) => {
-      const errors = [];
-      const isMed = row.productType === "medicine";
-
-      if (isMed && !row.medicine) errors.push("Medicine Selection is required");
-      if (!isMed && !row.productName?.trim()) errors.push("Product Name is required");
-      if (!row.company) errors.push("Company is required");
-      if (!row.category) errors.push("Category is required");
-      if (!row.size) errors.push("Size selection is required");
-
-      if (errors.length > 0) {
-        invalid.push({ row: index + 1, errors });
-      } else {
-        valid.push(row);
-      }
-    });
-
-    return { valid, invalid };
+  const removeRow = (id) => {
+    if (rows.length <= 1) return;
+    setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const goToPreview = () => {
-    const nonEmptyRows = gridRows.filter(
-      (r) => r.productName || r.medicine || r.company
+  const applyDefaultsToAll = () => {
+    setRows((prev) =>
+      prev.map((row) => {
+        const nextType = defaults.productType || row.productType;
+        return {
+          ...row,
+          productType: nextType,
+          medicine: nextType === "general" ? "" : row.medicine,
+          productName: nextType === "medicine" ? "" : row.productName,
+          company: defaults.company.length
+            ? [...defaults.company]
+            : row.company,
+          category: defaults.category || row.category,
+          size: defaults.size.length ? [...defaults.size] : row.size,
+          potency:
+            nextType === "general" ? "" : defaults.potency || row.potency,
+          useTypes: defaults.useTypes.length
+            ? [...defaults.useTypes]
+            : row.useTypes,
+          lowStockThreshold:
+            defaults.lowStockThreshold ?? row.lowStockThreshold,
+        };
+      }),
     );
+  };
 
-    if (nonEmptyRows.length === 0) {
-      toast.error("Please fill in at least one row with name/medicine details");
-      return;
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const findIdByName = (list, name) => {
+      if (!name) return "";
+      const q = name.trim().toLowerCase();
+      const found = list.find(
+        (item) =>
+          item.name?.toLowerCase() === q ||
+          item.shortName?.toLowerCase() === q ||
+          item._id === name.trim(),
+      );
+      return found ? found._id : "";
+    };
+
+    const findIdsByPipe = (list, raw) => {
+      if (!raw) return [];
+      return raw
+        .split(/[|;]/)
+        .map((part) => findIdByName(list, part))
+        .filter(Boolean);
+    };
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text !== "string") return;
+      const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
+      if (lines.length < 2) {
+        setError(
+          "CSV file must contain a header row and at least one data row.",
+        );
+        return;
+      }
+      const parsedRows = lines.slice(1).map((line) => {
+        const cols = line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+        const rawType = (cols[0] || "medicine").toLowerCase();
+        const productType = rawType === "general" ? "general" : "medicine";
+        return {
+          id: Math.random().toString(36).substring(2, 9),
+          productType,
+          medicine:
+            productType === "medicine"
+              ? findIdByName(refs.medicines, cols[1])
+              : "",
+          productName:
+            productType === "general" ? cols[2] || cols[1] || "" : "",
+          company: findIdsByPipe(refs.companies, cols[3]),
+          category: findIdByName(refs.categories, cols[4]),
+          size: findIdsByPipe(refs.sizes, cols[5]),
+          potency:
+            productType === "medicine"
+              ? findIdByName(refs.potencies, cols[6])
+              : "",
+          useTypes: findIdsByPipe(refs.useTypes, cols[7]),
+          lowStockThreshold: cols[8] || "12",
+        };
+      });
+      if (parsedRows.length > 0) {
+        setRows(parsedRows);
+        setError("");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const downloadTemplate = () => {
+    const headers =
+      "ProductType (medicine/general),MedicineName,GeneralProductName,Companies (pipe separated),Category,Sizes (pipe separated),Potency,UseTypes (pipe separated),LowStockThreshold\n";
+    const sample =
+      "medicine,Arnica Montana,,SBL,Dilution,30ml|100ml,30C,,12\n" +
+      "general,,Arnica Hair Oil,SBL,Ointment,100ml,,,12\n";
+    const blob = new Blob([headers + sample], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "product_bulk_import_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    const validRows = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const rowNum = i + 1;
+      const isRowEmpty =
+        !r.medicine &&
+        !r.productName.trim() &&
+        r.company.length === 0 &&
+        !r.category &&
+        r.size.length === 0;
+
+      if (isRowEmpty && rows.length > 1) continue;
+
+      if (r.productType === "medicine" && !r.medicine) {
+        setError(`Row #${rowNum}: Please select a Medicine / Remedy Name.`);
+        return;
+      }
+      if (r.productType === "general" && !r.productName.trim()) {
+        setError(`Row #${rowNum}: Please enter a Product Title.`);
+        return;
+      }
+      if (r.company.length === 0) {
+        setError(`Row #${rowNum}: Please select at least one Company / Brand.`);
+        return;
+      }
+      if (!r.category) {
+        setError(`Row #${rowNum}: Please select a Category.`);
+        return;
+      }
+      if (r.size.length === 0) {
+        setError(`Row #${rowNum}: Please select at least one Size.`);
+        return;
+      }
+
+      validRows.push({
+        ...r,
+        companies: r.company,
+        categories: r.category ? [r.category] : [],
+        sizes: r.size,
+        potencies: r.potency ? [r.potency] : [],
+      });
     }
 
-    setStep(2);
-  };
-
-  const handleImport = async () => {
-    const nonEmptyRows = gridRows.filter(
-      (r) => r.productName || r.medicine || r.company
-    );
-    const { valid, invalid } = validateRows(nonEmptyRows);
-
-    if (valid.length === 0) {
-      toast.error("No valid entries to register");
+    if (validRows.length === 0) {
+      setError("Please fill in at least one valid product row to import.");
       return;
     }
 
     try {
-      setImporting(true);
-      const result = await onImport(valid);
-      setResults({
-        ...result,
-        validationErrors: invalid,
-        totalAttempted: nonEmptyRows.length,
-      });
-      setStep(3);
-    } catch (error) {
-      toast.error("Process failed");
+      setIsSubmitting(true);
+      await onImport(validRows);
+    } catch (err) {
+      setError(err?.message || "Failed to import products.");
     } finally {
-      setImporting(false);
+      setIsSubmitting(false);
     }
   };
 
-  const resetModal = () => {
-    setGridRows([createEmptyRow()]);
-    setStep(1);
-    setResults(null);
-    onClose();
-  };
-
-  const getRowDisplayName = (row) => {
-    if (row.productType === "medicine") {
-      const med = refs.medicines.find((m) => m._id === row.medicine);
-      return med ? med.name : "❌ No remedy selected";
-    }
-    return row.productName || "❌ No name configured";
-  };
-
-  const getRefName = (list, id) => {
-    const item = list.find((i) => i._id === id);
-    return item?.name || "-";
-  };
-
-  const toOptions = (list) => list.map((item) => ({ value: item._id, label: item.name }));
+  if (loadingRefs) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="w-7 h-7 text-green-700 animate-spin mr-3" />
+        <span className="text-slate-800 text-base font-semibold">
+          Loading catalog masters...
+        </span>
+      </div>
+    );
+  }
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={resetModal}
-      title="Bulk Product Catalogue Registration"
-      size="full"
-      footer={
-        step === 1 ? (
-          <>
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-28">
+      {/* Top Sticky Page Header */}
+      <div className="sticky top-0 z-30 bg-white border-b border-slate-200 px-6 py-4 shadow-sm">
+        <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
             <button
-              onClick={resetModal}
-              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 font-semibold text-sm transition"
             >
-              Cancel
+              <ArrowLeft className="w-4 h-4" />
+              Back to Products
             </button>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">
+                Bulk Import Products
+              </h1>
+              <p className="text-xs text-slate-600">
+                Register multiple Medicine or General products using searchable
+                master dropdowns
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
             <button
-              onClick={goToPreview}
-              disabled={loadingRefs}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50"
+              type="button"
+              onClick={downloadTemplate}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 text-sm font-semibold transition"
             >
-              Preview Registrations <ArrowRight className="w-4 h-4" />
+              <Download className="w-4 h-4 text-slate-700" />
+              Download CSV Template
             </button>
-          </>
-        ) : step === 2 ? (
-          <>
+            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-sm font-semibold cursor-pointer transition">
+              <Upload className="w-4 h-4" />
+              Upload CSV
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </label>
             <button
-              onClick={() => setStep(1)}
-              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 text-sm font-semibold shadow-sm transition"
             >
-              ← Edit Rows
+              <CheckCircle2 className="w-4 h-4" />
+              {isSubmitting ? "Importing..." : `Import ${rows.length} Products`}
             </button>
-            <button
-              onClick={handleImport}
-              disabled={importing}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition"
-            >
-              {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {importing ? "Processing..." : `Register ${gridRows.filter((r) => r.productName || r.medicine || r.company).length} Products`}
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={resetModal}
-            className="px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800"
-          >
-            Complete
-          </button>
-        )
-      }
-    >
-      {loadingRefs && (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-6 h-6 text-green-600 animate-spin mr-2" />
-          <span className="text-gray-500">Retrieving master details...</span>
+          </div>
         </div>
-      )}
+      </div>
 
-      {!loadingRefs && step === 1 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-blue-700">
-              💡 Register your items first. After registration, search for them in the **Stock Manager** to assign batch codes, purchase prices, and initial stock quantities.
-            </p>
+      <div className="max-w-[1600px] mx-auto px-3 sm:px-6 pt-4 sm:pt-6 space-y-6">
+        {error && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 text-sm font-medium">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Quick-Fill Common Defaults Bar */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-green-700" />
+              <h2 className="text-sm font-bold text-slate-900">
+                Common Product Defaults (Quick-Fill Bar)
+              </h2>
+              <span className="text-xs text-slate-600">
+                — Set common attributes once and apply them to all rows
+              </span>
+            </div>
             <button
-              onClick={addRow}
-              className="flex items-center gap-1 bg-white text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-blue-100 transition"
+              type="button"
+              onClick={applyDefaultsToAll}
+              className="px-4 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-900 border border-green-300 text-xs font-bold transition"
             >
-              <Plus className="w-4 h-4" />
-              Add Row
+              Apply Defaults to All Rows
             </button>
           </div>
 
-          <div className="border rounded-lg overflow-auto max-h-[60vh]">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-gray-100 z-10">
-                <tr>
-                  <th className="px-2 py-2 text-gray-500 w-8">#</th>
-                  <th className="px-2 py-2 text-gray-600 text-left">Type *</th>
-                  <th className="px-2 py-2 text-gray-600 text-left">Medicine / Product Name *</th>
-                  <th className="px-2 py-2 text-gray-600 text-left">Company *</th>
-                  <th className="px-2 py-2 text-gray-600 text-left">Category *</th>
-                  <th className="px-2 py-2 text-gray-600 text-left">Size *</th>
-                  <th className="px-2 py-2 text-gray-600 text-left">Potency</th>
-                  <th className="px-2 py-2 text-gray-600 text-left">Use Types</th>
-                  <th className="px-2 py-2 text-gray-600 text-left">Min. Alert</th>
-                  <th className="px-2 py-2 text-gray-600 text-left">HSN</th>
-                  <th className="px-2 py-2 w-16"></th>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-4">
+            {/* Default Classification */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Default Type
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDefaults({ ...defaults, productType: "medicine" })
+                  }
+                  className={`flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-xs font-bold border transition ${
+                    defaults.productType === "medicine"
+                      ? "border-green-600 bg-green-50 text-green-900"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <Pill className="w-3.5 h-3.5 text-green-600" />
+                  Medicine
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDefaults({
+                      ...defaults,
+                      productType: "general",
+                      potency: "",
+                    })
+                  }
+                  className={`flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-xs font-bold border transition ${
+                    defaults.productType === "general"
+                      ? "border-blue-600 bg-blue-50 text-blue-900"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  <FlaskConical className="w-3.5 h-3.5 text-blue-600" />
+                  Patents
+                </button>
+              </div>
+            </div>
+
+            {/* Default Company */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Default Company
+              </label>
+              <SearchableMultiSelect
+                options={refs.companies}
+                selected={defaults.company}
+                onChange={(val) => setDefaults({ ...defaults, company: val })}
+                placeholder="Select company(s)..."
+              />
+            </div>
+
+            {/* Default Category */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Default Category
+              </label>
+              <SearchableSelect
+                options={categoryOptions}
+                value={defaults.category}
+                onChange={(val) => setDefaults({ ...defaults, category: val })}
+                placeholder="Select category..."
+              />
+            </div>
+
+            {/* Default Potency */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Default Potency
+              </label>
+              <SearchableSelect
+                options={potencyOptions}
+                value={defaults.potency}
+                onChange={(val) => setDefaults({ ...defaults, potency: val })}
+                placeholder="Select Potency..."
+                disabled={defaults.productType === "general"}
+              />
+            </div>
+
+            {/* Default Size */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Default Size
+              </label>
+              <SearchableMultiSelect
+                options={refs.sizes}
+                selected={defaults.size}
+                onChange={(val) => setDefaults({ ...defaults, size: val })}
+                placeholder="Select size(s)..."
+              />
+            </div>
+
+            {/* Default Use Types */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Default Use Types
+              </label>
+              <SearchableMultiSelect
+                options={refs.useTypes}
+                selected={defaults.useTypes}
+                onChange={(val) => setDefaults({ ...defaults, useTypes: val })}
+                placeholder="Select indications..."
+              />
+            </div>
+
+            {/* Low Stock Alert */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Low Stock Alert
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={defaults.lowStockThreshold}
+                onChange={(e) =>
+                  setDefaults({
+                    ...defaults,
+                    lowStockThreshold: e.target.value,
+                  })
+                }
+                placeholder="Alert Stock Threshold"
+                title="Low Stock Alert Threshold"
+                className="w-full px-2.5 py-2 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-600 outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* DESKTOP TABLE */}
+        <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div className="overflow-x-auto pb-48 -mb-48">
+            <table className="w-full text-left border-collapse min-w-[1400px]">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-200 text-slate-900 text-xs font-bold uppercase tracking-wider">
+                  <th className="py-3.5 px-3 w-10 text-center">#</th>
+                  <th className="py-3.5 px-3 w-40">Classification *</th>
+                  <th className="py-3.5 px-3 w-64">
+                    Medicine / Product Title *
+                  </th>
+                  <th className="py-3.5 px-3 w-56">Company / Brand *</th>
+                  <th className="py-3.5 px-3 w-48">Category *</th>
+                  {/* ★ Grouped Column */}
+                  <th className="py-3.5 px-3 w-40">Potency</th>
+                  <th className="py-3.5 px-3 w-52">Size / Volume *</th>
+                  <th className="py-3.5 px-3 w-52">Use Types</th>
+                  <th className="py-3.5 px-3 w-32">Low Stock Alert</th>
+                  <th className="py-3.5 px-3 w-20 text-center">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
-                {gridRows.map((row, rowIdx) => {
-                  const isMed = row.productType === "medicine";
+              <tbody className="divide-y divide-slate-200">
+                {rows.map((row, index) => {
+                  const isMedicine = row.productType === "medicine";
                   return (
-                    <tr key={rowIdx} className="hover:bg-gray-50">
-                      <td className="px-2 py-1 text-gray-400 text-center">{rowIdx + 1}</td>
-
-                      <td className="px-1 py-1">
-                        <select
-                          value={row.productType}
-                          onChange={(e) => updateCell(rowIdx, "productType", e.target.value)}
-                          className="w-full px-2 py-1.5 border border-gray-200 rounded text-xs bg-white"
-                        >
-                          <option value="medicine">💊 Medicine</option>
-                          <option value="general">🧴 General</option>
-                        </select>
+                    <tr
+                      key={row.id}
+                      className="hover:bg-slate-50/70 transition align-top"
+                    >
+                      <td className="py-3.5 px-3 text-center text-xs font-bold text-slate-700 pt-5">
+                        {index + 1}
                       </td>
 
-                      <td className="px-1 py-1">
-                        {isMed ? (
-                          <GridSelectCell
+                      {/* Product Type Toggle */}
+                      <td className="py-3.5 px-3">
+                        <div className="grid grid-cols-2 gap-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRowChange(row.id, "productType", "medicine")
+                            }
+                            className={`flex items-center justify-center gap-1 py-2 px-1.5 rounded-lg text-xs font-bold border transition ${
+                              isMedicine
+                                ? "border-green-600 bg-green-50 text-green-900 shadow-xs"
+                                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            Medicine
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRowChange(row.id, "productType", "general")
+                            }
+                            className={`flex items-center justify-center gap-1 py-2 px-1.5 rounded-lg text-xs font-bold border transition ${
+                              !isMedicine
+                                ? "border-blue-600 bg-blue-50 text-blue-900 shadow-xs"
+                                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            Patents
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Medicine Select OR General Product Title Input */}
+                      <td className="py-3.5 px-3">
+                        {isMedicine ? (
+                          <SearchableSelect
+                            options={medicineOptions}
                             value={row.medicine}
-                            onChange={(v) => updateCell(rowIdx, "medicine", v)}
-                            options={toOptions(refs.medicines)}
-                            placeholder="Find medicine"
+                            onChange={(val) =>
+                              handleRowChange(row.id, "medicine", val)
+                            }
+                            placeholder="Search medicine..."
                           />
                         ) : (
                           <input
                             type="text"
                             value={row.productName}
-                            onChange={(e) => updateCell(rowIdx, "productName", e.target.value)}
-                            placeholder="e.g. Skin Cream"
-                            className="w-full min-w-[140px] px-2 py-1.5 border border-gray-200 rounded text-xs"
+                            onChange={(e) =>
+                              handleRowChange(
+                                row.id,
+                                "productName",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="e.g., Arnica Hair Oil"
+                            className="w-full px-2.5 py-2 text-xs font-semibold text-slate-900 bg-white border border-slate-300 rounded-lg placeholder:text-slate-400 focus:ring-2 focus:ring-blue-600 outline-none"
                           />
                         )}
                       </td>
 
-                      <td className="px-1 py-1">
-                        <GridSelectCell
-                          value={row.company}
-                          onChange={(v) => updateCell(rowIdx, "company", v)}
-                          options={toOptions(refs.companies)}
-                          placeholder="Company"
+                      {/* Company Multi-Select */}
+                      <td className="py-3.5 px-3">
+                        <SearchableMultiSelect
+                          options={refs.companies}
+                          selected={row.company}
+                          onChange={(val) =>
+                            handleRowChange(row.id, "company", val)
+                          }
+                          placeholder="Select company(s)..."
                         />
                       </td>
 
-                      <td className="px-1 py-1">
-                        <GridSelectCell
+                      {/* Category Single-Select */}
+                      <td className="py-3.5 px-3">
+                        <SearchableSelect
+                          options={categoryOptions}
                           value={row.category}
-                          onChange={(v) => updateCell(rowIdx, "category", v)}
-                          options={toOptions(refs.categories)}
-                          placeholder="Category"
+                          onChange={(val) =>
+                            handleRowChange(row.id, "category", val)
+                          }
+                          placeholder="Select category..."
                         />
                       </td>
 
-                      <td className="px-1 py-1">
-                        <GridSelectCell
-                          value={row.size}
-                          onChange={(v) => updateCell(rowIdx, "size", v)}
-                          options={toOptions(refs.sizes)}
-                          placeholder="Packaging"
-                        />
-                      </td>
-
-                      <td className="px-1 py-1">
-                        <GridSelectCell
+                      {/* Potency Column */}
+                      <td className="py-3.5 px-3">
+                        <SearchableSelect
+                          options={potencyOptions}
                           value={row.potency}
-                          onChange={(v) => updateCell(rowIdx, "potency", v)}
-                          options={toOptions(refs.potencies)}
-                          placeholder={isMed ? "Optional" : "N/A"}
-                          disabled={!isMed}
+                          onChange={(val) =>
+                            handleRowChange(row.id, "potency", val)
+                          }
+                          placeholder="Select potency..."
+                          disabled={!isMedicine}
                         />
                       </td>
 
-                      <td className="px-1 py-1">
-                        <GridMultiSelectCell
-                          value={row.useTypes}
-                          onChange={(v) => updateCell(rowIdx, "useTypes", v)}
-                          options={toOptions(refs.useTypes)}
-                          placeholder="Indications"
+                      {/* Size Multi-Select */}
+                      <td className="py-3.5 px-3">
+                        <SearchableMultiSelect
+                          options={refs.sizes}
+                          selected={row.size}
+                          onChange={(val) =>
+                            handleRowChange(row.id, "size", val)
+                          }
+                          placeholder="Select size(s)..."
                         />
                       </td>
 
-                      <td className="px-1 py-1">
+                      {/* Use Types Multi-Select */}
+                      <td className="py-3.5 px-3">
+                        <SearchableMultiSelect
+                          options={refs.useTypes}
+                          selected={row.useTypes}
+                          onChange={(val) =>
+                            handleRowChange(row.id, "useTypes", val)
+                          }
+                          placeholder="Select indications..."
+                        />
+                      </td>
+
+                      {/* Low Stock Alert Column */}
+                      <td className="py-3.5 px-3">
                         <input
                           type="number"
+                          min="0"
                           value={row.lowStockThreshold}
-                          onChange={(e) => updateCell(rowIdx, "lowStockThreshold", e.target.value)}
-                          placeholder="10"
-                          className="w-full min-w-[50px] px-2 py-1.5 border border-gray-200 rounded text-xs"
+                          onChange={(e) =>
+                            handleRowChange(
+                              row.id,
+                              "lowStockThreshold",
+                              e.target.value,
+                            )
+                          }
+                          placeholder="12"
+                          title="Low Stock Alert Threshold"
+                          className="w-full px-2.5 py-2 text-xs font-semibold text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-600 outline-none"
                         />
                       </td>
 
-                      <td className="px-1 py-1">
-                        <input
-                          type="text"
-                          value={row.hsnCode}
-                          onChange={(e) => updateCell(rowIdx, "hsnCode", e.target.value)}
-                          placeholder="3004"
-                          className="w-full min-w-[60px] px-2 py-1.5 border border-gray-200 rounded text-xs"
-                        />
-                      </td>
-
-                      <td className="px-1 py-1">
-                        <div className="flex items-center gap-1">
+                      {/* Actions */}
+                      <td className="py-3.5 px-3 text-center">
+                        <div className="inline-flex items-center gap-1">
                           <button
-                            onClick={() => duplicateRow(rowIdx)}
-                            className="p-1 text-blue-400 hover:text-blue-600 rounded"
-                            title="Duplicate row"
+                            type="button"
+                            onClick={() => duplicateRow(index)}
+                            title="Duplicate Row"
+                            className="p-2 rounded-lg text-slate-700 hover:text-green-700 hover:bg-green-50 transition"
                           >
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => removeRow(rowIdx)}
-                            disabled={gridRows.length <= 1}
-                            className="p-1 text-red-400 hover:text-red-600 rounded disabled:opacity-30"
+                            type="button"
+                            onClick={() => removeRow(row.id)}
+                            disabled={rows.length <= 1}
+                            title="Delete Row"
+                            className="p-2 rounded-lg text-slate-700 hover:text-red-600 hover:bg-red-50 disabled:opacity-30 transition"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -412,136 +1041,267 @@ export default function ProductBulkImportModal({
             </table>
           </div>
 
-          <button
-            onClick={addRow}
-            className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-green-400 hover:text-green-600 hover:bg-green-50 transition"
-          >
-            <Plus className="w-4 h-4" />
-            Add New Row
-          </button>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-gray-700">
-            Confirming registration of {gridRows.filter((r) => r.productName || r.medicine || r.company).length} items
-          </h3>
-
-          <div className="border rounded-lg overflow-auto max-h-[60vh]">
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-gray-100 z-10">
-                <tr>
-                  <th className="px-3 py-2 text-gray-500 w-8">#</th>
-                  <th className="px-3 py-2 text-gray-600 text-left">Type</th>
-                  <th className="px-3 py-2 text-gray-600 text-left">Product</th>
-                  <th className="px-3 py-2 text-gray-600 text-left">Company</th>
-                  <th className="px-3 py-2 text-gray-600 text-left">Category</th>
-                  <th className="px-3 py-2 text-gray-600 text-left">Size</th>
-                  <th className="px-3 py-2 text-gray-600 text-left">Potency</th>
-                  <th className="px-3 py-2 text-gray-600 text-left">Use Types</th>
-                  <th className="px-3 py-2 text-gray-600 text-right">Low Stock Alert</th>
-                  <th className="px-3 py-2 text-gray-600 text-left">HSN</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {gridRows
-                  .filter((r) => r.productName || r.medicine || r.company)
-                  .map((row, idx) => {
-                    const isMed = row.productType === "medicine";
-                    const { invalid } = validateRows([row]);
-                    const hasErrors = invalid.length > 0;
-
-                    return (
-                      <tr key={idx} className={hasErrors ? "bg-red-50" : "hover:bg-gray-50"}>
-                        <td className="px-3 py-2 text-gray-400">
-                          {hasErrors ? <XCircle className="w-4 h-4 text-red-500" /> : idx + 1}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className={`text-xs px-2 py-0.5 rounded ${isMed ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"}`}>
-                            {isMed ? "💊 Medicine" : "🧴 General"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 font-semibold text-gray-800">
-                          {getRowDisplayName(row)}
-                        </td>
-                        <td className="px-3 py-2 text-gray-600">{getRefName(refs.companies, row.company)}</td>
-                        <td className="px-3 py-2 text-gray-600">{getRefName(refs.categories, row.category)}</td>
-                        <td className="px-3 py-2 text-gray-600">{getRefName(refs.sizes, row.size)}</td>
-                        <td className="px-3 py-2 text-gray-600 font-bold text-purple-700">
-                          {row.potency ? getRefName(refs.potencies, row.potency) : "-"}
-                        </td>
-                        <td className="px-3 py-2 text-gray-500">
-                          {row.useTypes.length > 0
-                            ? row.useTypes.map((id) => getRefName(refs.useTypes, id)).join(", ")
-                            : "-"}
-                        </td>
-                        <td className="px-3 py-2 text-right">{row.lowStockThreshold}</td>
-                        <td className="px-3 py-2 text-gray-600">{row.hsnCode}</td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
+          {/* Desktop Footer Controls */}
+          <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 rounded-b-2xl flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => addRows(1)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 hover:bg-slate-100 text-sm font-semibold shadow-xs transition"
+              >
+                <Plus className="w-4 h-4 text-green-700" />
+                Add 1 Row
+              </button>
+              <button
+                type="button"
+                onClick={() => addRows(5)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 hover:bg-slate-100 text-sm font-semibold shadow-xs transition"
+              >
+                <Plus className="w-4 h-4 text-green-700" />
+                Add 5 Rows
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 text-sm font-semibold transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-green-700 text-white hover:bg-green-800 disabled:opacity-50 text-sm font-semibold shadow-sm transition"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {isSubmitting
+                  ? "Importing..."
+                  : `Save & Import (${rows.length})`}
+              </button>
+            </div>
           </div>
+        </div>
 
-          {(() => {
-            const nonEmptyRows = gridRows.filter((r) => r.productName || r.medicine || r.company);
-            const { invalid } = validateRows(nonEmptyRows);
-            if (invalid.length === 0) return null;
+        {/* MOBILE PRODUCT CARDS */}
+        <div className="lg:hidden space-y-4">
+          {rows.map((row, index) => {
+            const isMedicine = row.productType === "medicine";
             return (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-sm font-semibold text-red-700 flex items-center gap-1 mb-2">
-                  <AlertTriangle className="w-4 h-4" />
-                  {invalid.length} entries contain missing parameters and will be skipped:
-                </p>
-                <ul className="text-xs text-red-600 space-y-0.5 max-h-24 overflow-y-auto">
-                  {invalid.map((err, i) => (
-                    <li key={i}>• Row {err.row}: {err.errors.join(", ")}</li>
-                  ))}
-                </ul>
+              <div
+                key={row.id}
+                className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-4"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Product #{index + 1}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => duplicateRow(index)}
+                      className="p-2 rounded-lg bg-green-50 text-green-700"
+                      title="Duplicate Row"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.id)}
+                      disabled={rows.length <= 1}
+                      className="p-2 rounded-lg bg-red-50 text-red-600 disabled:opacity-30"
+                      title="Delete Row"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Classification Toggle */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Product Classification *
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleRowChange(row.id, "productType", "medicine")
+                      }
+                      className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold border-2 transition ${
+                        isMedicine
+                          ? "border-green-600 bg-green-50 text-green-900"
+                          : "border-slate-200 bg-white text-slate-700"
+                      }`}
+                    >
+                      <Pill className="w-4 h-4 text-green-600" />
+                      Medicine
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleRowChange(row.id, "productType", "general")
+                      }
+                      className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold border-2 transition ${
+                        !isMedicine
+                          ? "border-blue-600 bg-blue-50 text-blue-900"
+                          : "border-slate-200 bg-white text-slate-700"
+                      }`}
+                    >
+                      <FlaskConical className="w-4 h-4 text-blue-600" />
+                      Patents
+                    </button>
+                  </div>
+                </div>
+
+                {/* Medicine OR Product Title */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    {isMedicine
+                      ? "Medicine / Remedy Name *"
+                      : "Product Title *"}
+                  </label>
+                  {isMedicine ? (
+                    <SearchableSelect
+                      options={medicineOptions}
+                      value={row.medicine}
+                      onChange={(val) =>
+                        handleRowChange(row.id, "medicine", val)
+                      }
+                      placeholder="Select a medicine from catalog..."
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={row.productName}
+                      onChange={(e) =>
+                        handleRowChange(row.id, "productName", e.target.value)
+                      }
+                      placeholder="e.g., Arnica Hair Oil"
+                      className="w-full px-3 py-2 text-xs font-semibold text-slate-900 bg-white border border-slate-300 rounded-lg placeholder:text-slate-400"
+                    />
+                  )}
+                </div>
+
+                {/* Company & Category */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="min-w-0">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Company / Brand *
+                    </label>
+                    <SearchableMultiSelect
+                      options={refs.companies}
+                      selected={row.company}
+                      onChange={(val) =>
+                        handleRowChange(row.id, "company", val)
+                      }
+                      placeholder="Company..."
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Category *
+                    </label>
+                    <SearchableSelect
+                      options={categoryOptions}
+                      value={row.category}
+                      onChange={(val) =>
+                        handleRowChange(row.id, "category", val)
+                      }
+                      placeholder="Category..."
+                    />
+                  </div>
+                </div>
+
+                {/* Size & Use Types */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="min-w-0">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Size *
+                    </label>
+                    <SearchableMultiSelect
+                      options={refs.sizes}
+                      selected={row.size}
+                      onChange={(val) => handleRowChange(row.id, "size", val)}
+                      placeholder="Select size..."
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Use Types
+                    </label>
+                    <SearchableMultiSelect
+                      options={refs.useTypes}
+                      selected={row.useTypes}
+                      onChange={(val) =>
+                        handleRowChange(row.id, "useTypes", val)
+                      }
+                      placeholder="Select use..."
+                    />
+                  </div>
+                </div>
+
+                {/* ★ Grouped Potency & Low Stock Alert in Mobile */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Potency
+                    </label>
+                    <SearchableSelect
+                      options={potencyOptions}
+                      value={row.potency}
+                      onChange={(val) =>
+                        handleRowChange(row.id, "potency", val)
+                      }
+                      placeholder="Select potency..."
+                      disabled={!isMedicine}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Low Stock Alert
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={row.lowStockThreshold}
+                      onChange={(e) =>
+                        handleRowChange(
+                          row.id,
+                          "lowStockThreshold",
+                          e.target.value,
+                        )
+                      }
+                      className="w-full px-3 py-2 text-xs font-medium text-slate-900 bg-white border border-slate-300 rounded-lg"
+                    />
+                  </div>
+                </div>
               </div>
             );
-          })()}
-        </div>
-      )}
+          })}
 
-      {step === 3 && results && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4 text-center">
-              <p className="text-2xl font-bold text-gray-800">{results.totalAttempted}</p>
-              <p className="text-xs text-gray-500">Attempted</p>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4 text-center">
-              <CheckCircle2 className="w-6 h-6 text-green-600 mx-auto mb-1" />
-              <p className="text-2xl font-bold text-green-700">{results.success || 0}</p>
-              <p className="text-xs text-green-600">Created</p>
-            </div>
-            <div className="bg-red-50 rounded-lg p-4 text-center">
-              <XCircle className="w-6 h-6 text-red-600 mx-auto mb-1" />
-              <p className="text-2xl font-bold text-red-700">
-                {(results.failed || 0) + (results.validationErrors?.length || 0)}
-              </p>
-              <p className="text-xs text-red-600">Failed / Skipped</p>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => addRows(1)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 text-sm font-semibold"
+            >
+              <Plus className="w-4 h-4 text-green-700" />
+              Add Row
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-green-700 text-white text-sm font-semibold"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              {isSubmitting ? "Importing..." : `Save & Import (${rows.length})`}
+            </button>
           </div>
-
-          {results.errors?.length > 0 && (
-            <div className="border border-red-200 rounded-lg p-4 bg-red-50">
-              <h4 className="text-sm font-semibold text-red-700 mb-2 flex items-center gap-1">
-                <AlertTriangle className="w-4 h-4" />
-                Submission Errors
-              </h4>
-              <ul className="text-xs text-red-600 space-y-1 max-h-40 overflow-y-auto">
-                {results.errors.map((err, i) => (
-                  <li key={i}>• {err}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
-      )}
-    </Modal>
+      </div>
+    </div>
   );
 }
