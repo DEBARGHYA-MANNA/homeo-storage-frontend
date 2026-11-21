@@ -21,11 +21,26 @@ import toast from "react-hot-toast";
 
 const companyColumns = [
   { key: "name", label: "Company Name", required: true, example: "SBL" },
-  { key: "description", label: "Description", required: false, example: "Leading homeopathic manufacturer" },
-  { key: "contactPerson", label: "Contact Person", required: false, example: "Mr. Sharma" },
+  {
+    key: "description",
+    label: "Description",
+    required: false,
+    example: "Leading homeopathic manufacturer",
+  },
+  {
+    key: "contactPerson",
+    label: "Contact Person",
+    required: false,
+    example: "Mr. Sharma",
+  },
   { key: "phone", label: "Phone", required: false, example: "011-23456789" },
   { key: "email", label: "Email", required: false, example: "info@sbl.com" },
-  { key: "address", label: "Address", required: false, example: "Delhi, India" },
+  {
+    key: "address",
+    label: "Address",
+    required: false,
+    example: "Delhi, India",
+  },
   { key: "country", label: "Country", required: false, example: "India" },
 ];
 
@@ -34,6 +49,12 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -41,7 +62,11 @@ export default function CompaniesPage() {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: "" });
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    id: null,
+    name: "",
+  });
   const [deleting, setDeleting] = useState(false);
 
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
@@ -49,21 +74,41 @@ export default function CompaniesPage() {
   const fetchCompanies = useCallback(async () => {
     try {
       setLoading(true);
-      const params = {};
+      const params = { page, limit };
       if (search) params.search = search;
+
       const res = await companyService.getAll(params);
-      if (res.success) setCompanies(res.data);
+      if (res.success) {
+        setCompanies(res.data || []);
+
+        // Map backend response properties (total, totalPages) directly
+        const total =
+          res.total ?? res.pagination?.total ?? res.data?.length ?? 0;
+        const pages =
+          res.totalPages ??
+          res.pagination?.pages ??
+          res.pagination?.totalPages ??
+          (limit ? Math.ceil(total / limit) : 1);
+
+        setTotalRecords(total);
+        setTotalPages(pages || 1);
+      }
     } catch (error) {
       toast.error("Failed to fetch companies");
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [page, limit, search]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchCompanies(), 300);
     return () => clearTimeout(timer);
   }, [fetchCompanies]);
+
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setPage(1);
+  };
 
   const openAddModal = () => {
     setIsEditMode(false);
@@ -99,7 +144,8 @@ export default function CompaniesPage() {
   const validateForm = () => {
     const errors = {};
     if (!formData.name.trim()) errors.name = "Company name is required";
-    if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) errors.email = "Invalid email format";
+    if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email))
+      errors.email = "Invalid email format";
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -161,7 +207,9 @@ export default function CompaniesPage() {
         if (res.success) success++;
       } catch (error) {
         failed++;
-        errors.push(`${row.name}: ${error.response?.data?.message || "Failed"}`);
+        errors.push(
+          `${row.name}: ${error.response?.data?.message || "Failed"}`,
+        );
       }
     }
 
@@ -171,6 +219,7 @@ export default function CompaniesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -199,6 +248,7 @@ export default function CompaniesPage() {
         </div>
       </div>
 
+      {/* Filter / Search Bar */}
       <div className="bg-white rounded-xl shadow-sm border p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="relative max-w-md flex-1">
@@ -206,7 +256,7 @@ export default function CompaniesPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleSearchChange}
               placeholder="Search companies..."
               className="w-full pl-10 pr-4 py-2 text-slate-900 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
@@ -222,6 +272,7 @@ export default function CompaniesPage() {
         </div>
       </div>
 
+      {/* Table & Pagination Wrapper */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -234,53 +285,156 @@ export default function CompaniesPage() {
             <p className="text-gray-500 font-medium">No companies found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Company Name</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Contact</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Email</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Country</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {companies.map((company, index) => (
-                  <tr key={company._id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 text-sm text-gray-400">{index + 1}</td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-semibold text-gray-800">{company.name}</p>
-                      {company.description && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">{company.description}</p>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 hidden md:table-cell">
-                      <p className="text-sm text-gray-700">{company.contactPerson || "-"}</p>
-                      {company.phone && <p className="text-xs text-gray-400">{company.phone}</p>}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 hidden lg:table-cell">{company.email || "-"}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 hidden lg:table-cell">{company.country || "-"}</td>
-                    <td className="px-6 py-4">
-                      <StatusBadge isActive={company.isActive} />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEditModal(company)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition" title="Edit">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => openDeleteDialog(company)} className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition" title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-[1000px] text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-16">
+                      #
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Company Name
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Contact
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Country
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-32">
+                      Status
+                    </th>
+                    <th className="text-right px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-28">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {companies.map((company, index) => (
+                    <tr
+                      key={company._id}
+                      className="hover:bg-gray-50 transition"
+                    >
+                      <td className="px-6 py-4 text-sm text-slate-500">
+                        {(page - 1) * limit + index + 1}
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-semibold text-slate-900">
+                          {company.name}
+                        </p>
+                        {company.description && (
+                          <p className="text-xs text-slate-500 mt-0.5 truncate max-w-[250px]">
+                            {company.description}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-slate-700">
+                          {company.contactPerson || "-"}
+                        </p>
+                        {company.phone && (
+                          <p className="text-xs text-slate-500">
+                            {company.phone}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {company.email || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {company.country || "-"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge isActive={company.isActive} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEditModal(company)}
+                            className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
+                            title="Edit"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openDeleteDialog(company)}
+                            className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-slate-600">
+                Showing{" "}
+                <span className="font-semibold text-slate-900">
+                  {(page - 1) * limit + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-semibold text-slate-900">
+                  {Math.min(page * limit, totalRecords)}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-slate-900">
+                  {totalRecords}
+                </span>{" "}
+                companies
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">Rows per page:</span>
+                  <select
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="px-2 py-1 border border-gray-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={page === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-slate-700 hover:bg-gray-100 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-slate-600">
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                    disabled={page >= totalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-slate-700 hover:bg-gray-100 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -291,17 +445,29 @@ export default function CompaniesPage() {
         size="lg"
         footer={
           <>
-            <button onClick={closeModal} disabled={submitting} className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50">
+            <button
+              onClick={closeModal}
+              disabled={submitting}
+              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+            >
               Cancel
             </button>
-            <button onClick={handleSubmit} disabled={submitting} className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50"
+            >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditMode ? "Update Company" : "Create Company"}
             </button>
           </>
         }
       >
-        <CompanyForm formData={formData} onChange={setFormData} errors={formErrors} />
+        <CompanyForm
+          formData={formData}
+          onChange={setFormData}
+          errors={formErrors}
+        />
       </Modal>
 
       <ConfirmDialog

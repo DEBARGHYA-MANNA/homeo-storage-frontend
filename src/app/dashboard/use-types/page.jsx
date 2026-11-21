@@ -7,18 +7,38 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
 import BulkImportModal from "@/components/BulkImportModal";
 import UseTypeForm, { emptyUseTypeForm } from "@/components/forms/UseTypeForm";
-import { Plus, Pencil, Trash2, Search, HeartPulse, Loader2, RefreshCw, Upload } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  HeartPulse,
+  Loader2,
+  RefreshCw,
+  Upload,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 const useTypeColumns = [
   { key: "name", label: "Use Type Name", required: true, example: "Cold" },
-  { key: "description", label: "Description", required: false, example: "Common cold, runny nose, sneezing" },
+  {
+    key: "description",
+    label: "Description",
+    required: false,
+    example: "Common cold, runny nose, sneezing",
+  },
 ];
 
 export default function UseTypesPage() {
   const [useTypes, setUseTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -27,7 +47,11 @@ export default function UseTypesPage() {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: "" });
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    id: null,
+    name: "",
+  });
   const [deleting, setDeleting] = useState(false);
 
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
@@ -35,21 +59,41 @@ export default function UseTypesPage() {
   const fetchUseTypes = useCallback(async () => {
     try {
       setLoading(true);
-      const params = {};
+      const params = { page, limit };
       if (search) params.search = search;
+
       const res = await useTypeService.getAll(params);
-      if (res.success) setUseTypes(res.data);
+      if (res.success) {
+        setUseTypes(res.data || []);
+
+        // Handle backend pagination properties directly
+        const total =
+          res.total ?? res.pagination?.total ?? res.data?.length ?? 0;
+        const pages =
+          res.totalPages ??
+          res.pagination?.pages ??
+          res.pagination?.totalPages ??
+          (limit ? Math.ceil(total / limit) : 1);
+
+        setTotalRecords(total);
+        setTotalPages(pages || 1);
+      }
     } catch (error) {
       toast.error("Failed to fetch indications");
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [page, limit, search]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchUseTypes(), 300);
     return () => clearTimeout(timer);
   }, [fetchUseTypes]);
+
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setPage(1);
+  };
 
   const openAddModal = () => {
     setIsEditMode(false);
@@ -140,7 +184,9 @@ export default function UseTypesPage() {
         if (res.success) success++;
       } catch (error) {
         failed++;
-        errors.push(`${row.name}: ${error.response?.data?.message || "Failed"}`);
+        errors.push(
+          `${row.name}: ${error.response?.data?.message || "Failed"}`,
+        );
       }
     }
     fetchUseTypes();
@@ -149,6 +195,7 @@ export default function UseTypesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -178,6 +225,7 @@ export default function UseTypesPage() {
         </div>
       </div>
 
+      {/* Search / Filter Bar */}
       <div className="bg-white rounded-xl shadow-sm border p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="relative max-w-md flex-1">
@@ -185,7 +233,7 @@ export default function UseTypesPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleSearchChange}
               placeholder="Search indications..."
               className="w-full pl-10 pr-4 py-2 text-slate-900 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
@@ -201,6 +249,7 @@ export default function UseTypesPage() {
         </div>
       </div>
 
+      {/* Table & Pagination Wrapper */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -213,63 +262,125 @@ export default function UseTypesPage() {
             <p className="text-gray-500 font-medium">No use types found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
-                    #
-                  </th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Indication Name
-                  </th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">
-                    Status
-                  </th>
-                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {useTypes.map((ut, index) => (
-                  <tr key={ut._id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 text-sm text-gray-400">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4 font-semibold text-gray-800 text-sm">
-                      {ut.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                      {ut.description || "-"}
-                    </td>
-                    <td className="px-6 py-4">
-                      <StatusBadge isActive={ut.isActive} />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => openEditModal(ut)}
-                          className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openDeleteDialog(ut)}
-                          className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-[1000px] text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-16">
+                      #
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Indication Name
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Description
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-32">
+                      Status
+                    </th>
+                    <th className="text-right px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-28">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {useTypes.map((ut, index) => (
+                    <tr key={ut._id} className="hover:bg-gray-50 transition">
+                      <td className="px-6 py-4 text-sm text-slate-500">
+                        {(page - 1) * limit + index + 1}
+                      </td>
+                      <td className="px-6 py-4 font-semibold text-slate-900 text-sm">
+                        {ut.name}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 max-w-xs truncate">
+                        {ut.description || "-"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge isActive={ut.isActive} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEditModal(ut)}
+                            className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openDeleteDialog(ut)}
+                            className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-slate-600">
+                Showing{" "}
+                <span className="font-semibold text-slate-900">
+                  {(page - 1) * limit + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-semibold text-slate-900">
+                  {Math.min(page * limit, totalRecords)}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-slate-900">
+                  {totalRecords}
+                </span>{" "}
+                use types
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">Rows per page:</span>
+                  <select
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="px-2 py-1 border border-gray-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={page === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-slate-700 hover:bg-gray-100 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-slate-600">
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                    disabled={page >= totalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-slate-700 hover:bg-gray-100 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
