@@ -7,7 +7,17 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
 import BulkImportModal from "@/components/BulkImportModal";
 import SizeForm, { emptySizeForm } from "@/components/forms/SizeForm";
-import { Plus, Pencil, Trash2, Search, Ruler, Loader2, Filter, RefreshCw, Upload } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  Ruler,
+  Loader2,
+  Filter,
+  RefreshCw,
+  Upload,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 const sizeColumns = [
@@ -22,6 +32,12 @@ export default function SizesPage() {
   const [search, setSearch] = useState("");
   const [unitFilter, setUnitFilter] = useState("");
 
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -29,7 +45,11 @@ export default function SizesPage() {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, id: null, name: "" });
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    id: null,
+    name: "",
+  });
   const [deleting, setDeleting] = useState(false);
 
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
@@ -37,22 +57,47 @@ export default function SizesPage() {
   const fetchSizes = useCallback(async () => {
     try {
       setLoading(true);
-      const params = {};
+      const params = { page, limit };
       if (search) params.search = search;
       if (unitFilter) params.unit = unitFilter;
+
       const res = await sizeService.getAll(params);
-      if (res.success) setSizes(res.data);
+      if (res.success) {
+        setSizes(res.data || []);
+
+        // Handle backend pagination properties directly
+        const total =
+          res.total ?? res.pagination?.total ?? res.data?.length ?? 0;
+        const pages =
+          res.totalPages ??
+          res.pagination?.pages ??
+          res.pagination?.totalPages ??
+          (limit ? Math.ceil(total / limit) : 1);
+
+        setTotalRecords(total);
+        setTotalPages(pages || 1);
+      }
     } catch (error) {
       toast.error("Failed to fetch sizes");
     } finally {
       setLoading(false);
     }
-  }, [search, unitFilter]);
+  }, [page, limit, search, unitFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchSizes(), 300);
     return () => clearTimeout(timer);
   }, [fetchSizes]);
+
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setPage(1);
+  };
+
+  const handleUnitFilterChange = (e) => {
+    setUnitFilter(e.target.value);
+    setPage(1);
+  };
 
   const openAddModal = () => {
     setIsEditMode(false);
@@ -84,7 +129,8 @@ export default function SizesPage() {
   const validateForm = () => {
     const errors = {};
     if (!formData.name.trim()) errors.name = "Size name is required";
-    if (formData.volume === "" || Number(formData.volume) < 0) errors.volume = "Valid volume is required";
+    if (formData.volume === "" || Number(formData.volume) < 0)
+      errors.volume = "Valid volume is required";
     if (!formData.unit) errors.unit = "Unit is required";
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -149,7 +195,9 @@ export default function SizesPage() {
         if (res.success) success++;
       } catch (error) {
         failed++;
-        errors.push(`${row.name}: ${error.response?.data?.message || "Failed"}`);
+        errors.push(
+          `${row.name}: ${error.response?.data?.message || "Failed"}`,
+        );
       }
     }
     fetchSizes();
@@ -158,6 +206,7 @@ export default function SizesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
@@ -165,7 +214,8 @@ export default function SizesPage() {
             Sizes & Packagings
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Manage volume packaging options (10 ml, 30 ml, 100 ml, 450 ml, 25 g, etc.)
+            Manage volume packaging options (10 ml, 30 ml, 100 ml, 450 ml, 25 g,
+            etc.)
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -186,6 +236,7 @@ export default function SizesPage() {
         </div>
       </div>
 
+      {/* Filter / Search Bar */}
       <div className="bg-white rounded-xl shadow-sm border p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="relative max-w-md flex-1">
@@ -193,7 +244,7 @@ export default function SizesPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={handleSearchChange}
               placeholder="Search sizes..."
               className="w-full pl-10 pr-4 py-2 text-slate-900 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />
@@ -202,8 +253,8 @@ export default function SizesPage() {
             <Filter className="w-4 h-4 text-gray-400 hidden sm:block" />
             <select
               value={unitFilter}
-              onChange={(e) => setUnitFilter(e.target.value)}
-              className="w-full sm:w-44 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              onChange={handleUnitFilterChange}
+              className="w-full sm:w-44 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="">All Units</option>
               <option value="ml">ml</option>
@@ -217,13 +268,16 @@ export default function SizesPage() {
               disabled={loading}
               className="flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+              />
               <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
         </div>
       </div>
 
+      {/* Table & Pagination Wrapper */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -236,47 +290,133 @@ export default function SizesPage() {
             <p className="text-gray-500 font-medium">No sizes found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">#</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Display Name</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Volume</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit</th>
-                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-32">Status</th>
-                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {sizes.map((size, index) => (
-                  <tr key={size._id} className="hover:bg-gray-50 transition">
-                    <td className="px-6 py-4 text-sm text-gray-400">{index + 1}</td>
-                    <td className="px-6 py-4">
-                      <span className="font-semibold text-gray-800 text-sm bg-gray-100 px-2.5 py-1 rounded-md">
-                        {size.name}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-700">{size.volume}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600 uppercase">{size.unit}</td>
-                    <td className="px-6 py-4">
-                      <StatusBadge isActive={size.isActive} />
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEditModal(size)} className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => openDeleteDialog(size)} className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="w-full overflow-x-auto">
+              <table className="w-full min-w-[1000px] text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b">
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-16">
+                      #
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Display Name
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Volume
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Unit
+                    </th>
+                    <th className="px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-32">
+                      Status
+                    </th>
+                    <th className="text-right px-6 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-28">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {sizes.map((size, index) => (
+                    <tr key={size._id} className="hover:bg-gray-50 transition">
+                      <td className="px-6 py-4 text-sm text-slate-500">
+                        {(page - 1) * limit + index + 1}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="font-semibold text-slate-900 text-sm bg-gray-100 px-2.5 py-1 rounded-md">
+                          {size.name}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-700">
+                        {size.volume}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600 uppercase">
+                        {size.unit}
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge isActive={size.isActive} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEditModal(size)}
+                            className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openDeleteDialog(size)}
+                            className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-slate-600">
+                Showing{" "}
+                <span className="font-semibold text-slate-900">
+                  {(page - 1) * limit + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-semibold text-slate-900">
+                  {Math.min(page * limit, totalRecords)}
+                </span>{" "}
+                of{" "}
+                <span className="font-semibold text-slate-900">
+                  {totalRecords}
+                </span>{" "}
+                sizes
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-600">Rows per page:</span>
+                  <select
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="px-2 py-1 border border-gray-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={page === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-slate-700 hover:bg-gray-100 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-slate-600">
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() =>
+                      setPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                    disabled={page >= totalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-slate-700 hover:bg-gray-100 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
 
@@ -287,17 +427,29 @@ export default function SizesPage() {
         size="md"
         footer={
           <>
-            <button onClick={closeModal} disabled={submitting} className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50">
+            <button
+              onClick={closeModal}
+              disabled={submitting}
+              className="px-5 py-2.5 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+            >
               Cancel
             </button>
-            <button onClick={handleSubmit} disabled={submitting} className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50">
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 transition disabled:opacity-50"
+            >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {isEditMode ? "Update Size" : "Create Size"}
             </button>
           </>
         }
       >
-        <SizeForm formData={formData} onChange={setFormData} errors={formErrors} />
+        <SizeForm
+          formData={formData}
+          onChange={setFormData}
+          errors={formErrors}
+        />
       </Modal>
 
       <ConfirmDialog

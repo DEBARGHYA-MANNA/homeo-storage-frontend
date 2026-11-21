@@ -37,11 +37,17 @@ export default function StockManagerPage() {
   const [companies, setCompanies] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState("");
 
-  // Products
+  // Products State
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [stockFilter, setStockFilter] = useState("all");
+
+  // Products Pagination State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
   // Modals
   const [addModal, setAddModal] = useState({ isOpen: false, product: null });
@@ -79,34 +85,63 @@ export default function StockManagerPage() {
     loadCompanies();
   }, []);
 
-  // Fetch products
+  // Fetch products with pagination
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const params = {};
+      const params = { page, limit };
       if (search) params.search = search;
       if (selectedCompany) params.company = selectedCompany;
       if (stockFilter === "lowStock") params.lowStock = "true";
+
       const res = await productService.getAll(params);
       if (res.success) {
-        let filtered = res.data;
+        let filtered = res.data || [];
         if (stockFilter === "inStock")
           filtered = filtered.filter((p) => p.stock > 0);
         else if (stockFilter === "outOfStock")
           filtered = filtered.filter((p) => p.stock === 0);
         setProducts(filtered);
+
+        // Map backend pagination properties directly
+        const total =
+          res.total ?? res.pagination?.total ?? res.data?.length ?? 0;
+        const pages =
+          res.totalPages ??
+          res.pagination?.pages ??
+          res.pagination?.totalPages ??
+          (limit ? Math.ceil(total / limit) : 1);
+
+        setTotalRecords(total);
+        setTotalPages(pages || 1);
       }
     } catch (error) {
       toast.error("Failed to fetch products");
     } finally {
       setLoading(false);
     }
-  }, [search, selectedCompany, stockFilter]);
+  }, [page, limit, search, selectedCompany, stockFilter]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchProducts(), 300);
     return () => clearTimeout(timer);
   }, [fetchProducts]);
+
+  // Handlers that reset page to 1
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setPage(1);
+  };
+
+  const handleCompanyChange = (e) => {
+    setSelectedCompany(e.target.value);
+    setPage(1);
+  };
+
+  const handleStockFilterChange = (e) => {
+    setStockFilter(e.target.value);
+    setPage(1);
+  };
 
   // Fetch transactions
   const fetchTransactions = async () => {
@@ -149,7 +184,7 @@ export default function StockManagerPage() {
   };
 
   const stats = {
-    total: products.length,
+    total: totalRecords || products.length,
     inStock: products.filter((p) => p.stock > 0).length,
     lowStock: products.filter(
       (p) => p.stock > 0 && p.stock <= p.lowStockThreshold,
@@ -239,7 +274,7 @@ export default function StockManagerPage() {
                     <p className="text-xs text-gray-500 font-medium">
                       {stat.label}
                     </p>
-                    <p className="text-xl font-bold text-gray-800">
+                    <p className="text-xl font-bold text-slate-900">
                       {stat.value}
                     </p>
                   </div>
@@ -249,17 +284,15 @@ export default function StockManagerPage() {
           </div>
 
           {/* Company Filter + Search */}
-          <div className="bg-white rounded-xl shadow-sm border-2 border-gray-100 p-4">
+          <div className="bg-white rounded-xl shadow-sm border p-4">
             <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3">
               {/* Company Dropdown */}
               <div className="flex items-center gap-2 w-full lg:w-auto">
                 <Building2 className="w-4 h-4 text-gray-400 flex-shrink-0" />
                 <select
                   value={selectedCompany}
-                  onChange={(e) => setSelectedCompany(e.target.value)}
-                  className="w-full lg:w-52 px-3 py-2.5 border-2 border-gray-300 rounded-lg text-sm
-                             bg-gray-50 text-gray-800 font-medium
-                             focus:outline-none focus:border-green-500 focus:bg-white transition"
+                  onChange={handleCompanyChange}
+                  className="w-full lg:w-52 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">🏢 All Companies</option>
                   {companies.map((c) => (
@@ -272,16 +305,13 @@ export default function StockManagerPage() {
 
               {/* Search */}
               <div className="relative flex-1 w-full">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={handleSearchChange}
                   placeholder="Search by product name..."
-                  className="w-full pl-10 pr-4 py-2.5 border-2 border-gray-300 rounded-lg text-sm
-                             bg-gray-50 text-slate-900
-                             focus:outline-none focus:border-green-500 focus:bg-white
-                             transition placeholder:text-gray-400"
+                  className="w-full pl-10 pr-4 py-2 text-slate-900 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
 
@@ -290,10 +320,8 @@ export default function StockManagerPage() {
                 <Filter className="w-4 h-4 text-gray-400 hidden sm:block" />
                 <select
                   value={stockFilter}
-                  onChange={(e) => setStockFilter(e.target.value)}
-                  className="px-3 py-2.5 border-2 border-gray-300 rounded-lg text-sm
-                             bg-gray-50 text-gray-800 font-medium
-                             focus:outline-none focus:border-green-500 focus:bg-white transition"
+                  onChange={handleStockFilterChange}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="all">All Products</option>
                   <option value="inStock">✅ In Stock</option>
@@ -304,9 +332,7 @@ export default function StockManagerPage() {
                 <button
                   onClick={fetchProducts}
                   disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2.5 border-2 border-gray-300 rounded-lg
-                             text-gray-600 bg-gray-50 hover:bg-green-50 hover:text-green-700
-                             hover:border-green-300 transition disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-green-50 hover:text-green-700 hover:border-green-200 transition disabled:opacity-50"
                 >
                   <RefreshCw
                     className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
@@ -322,13 +348,16 @@ export default function StockManagerPage() {
                 <span className="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-full font-semibold flex items-center gap-1">
                   🏢 {companies.find((c) => c._id === selectedCompany)?.name}
                   <button
-                    onClick={() => setSelectedCompany("")}
+                    onClick={() => {
+                      setSelectedCompany("");
+                      setPage(1);
+                    }}
                     className="ml-1 text-green-500 hover:text-green-800"
                   >
                     ✕
                   </button>
                 </span>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-gray-500">
                   Showing {products.length} products from this company
                 </span>
               </div>
@@ -336,7 +365,7 @@ export default function StockManagerPage() {
           </div>
 
           {/* Products Table */}
-          <div className="bg-white rounded-xl shadow-sm border-2 border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
             {loading ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 text-green-600 animate-spin" />
@@ -350,146 +379,210 @@ export default function StockManagerPage() {
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 border-b-2 border-gray-200">
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                        #
-                      </th>
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                        Product
-                      </th>
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                        Company
-                      </th>
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">
-                        Size
-                      </th>
-                      <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                        Stock
-                      </th>
-                      <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider hidden lg:table-cell">
-                        Batches
-                      </th>
-                      <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                        MRP
-                      </th>
-                      <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider hidden lg:table-cell">
-                        Cust. ₹
-                      </th>
-                      <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider hidden lg:table-cell">
-                        Dr. ₹
-                      </th>
-                      <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {products.map((product, index) => {
-                      const isLow =
-                        product.stock > 0 &&
-                        product.stock <= product.lowStockThreshold;
-                      const isOut = product.stock === 0;
-                      return (
-                        <tr
-                          key={product._id}
-                          className="hover:bg-gray-50 transition"
-                        >
-                          <td className="px-4 py-3 text-sm text-gray-400">
-                            {index + 1}
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="text-sm font-semibold text-gray-800">
-                              {product.medicine ? "💊" : "🧴"}{" "}
-                              {getDisplayName(product)}
-                            </p>
-                            {product.potency && (
-                              <span className="text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded font-semibold">
-                                {product.potency.name}
+              <>
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full min-w-[1000px] text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b">
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider w-12">
+                          #
+                        </th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          Product
+                        </th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider hidden md:table-cell">
+                          Company
+                        </th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider hidden md:table-cell">
+                          Size
+                        </th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-center">
+                          Stock
+                        </th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-center hidden lg:table-cell">
+                          Batches
+                        </th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-center">
+                          MRP
+                        </th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-center hidden lg:table-cell">
+                          Cust. ₹
+                        </th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-center hidden lg:table-cell">
+                          Dr. ₹
+                        </th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-center">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {products.map((product, index) => {
+                        const isLow =
+                          product.stock > 0 &&
+                          product.stock <= product.lowStockThreshold;
+                        const isOut = product.stock === 0;
+                        return (
+                          <tr
+                            key={product._id}
+                            className="hover:bg-gray-50 transition"
+                          >
+                            <td className="px-4 py-3 text-sm text-slate-500">
+                              {(page - 1) * limit + index + 1}
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-sm font-semibold text-slate-900">
+                                {product.medicine ? "💊" : "🧴"}{" "}
+                                {getDisplayName(product)}
+                              </p>
+                              {product.potency && (
+                                <span className="text-[10px] text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded font-semibold">
+                                  {product.potency.name}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-600 hidden md:table-cell">
+                              {product.company?.name || "-"}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-slate-600 hidden md:table-cell">
+                              {product.size?.name || "-"}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span
+                                className={`text-lg font-bold ${isOut ? "text-red-600" : isLow ? "text-yellow-600" : "text-green-700"}`}
+                              >
+                                {product.stock}
                               </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">
-                            {product.company?.name || "-"}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">
-                            {product.size?.name || "-"}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span
-                              className={`text-lg font-bold ${isOut ? "text-red-600" : isLow ? "text-yellow-600" : "text-green-700"}`}
-                            >
-                              {product.stock}
-                            </span>
-                            {isLow && (
-                              <AlertTriangle className="w-3 h-3 text-yellow-500 inline ml-1" />
-                            )}
-                            {isOut && (
-                              <span className="text-[10px] text-red-500 block">
-                                OUT
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-center text-sm text-gray-500 hidden lg:table-cell">
-                            {product.batches?.length || 0}
-                          </td>
-                          <td className="px-4 py-3 text-center text-sm font-semibold">
-                            {product.mrp > 0 ? `₹${product.mrp}` : "-"}
-                          </td>
-                          <td className="px-4 py-3 text-center text-sm text-blue-700 hidden lg:table-cell">
-                            {product.sellingPriceCustomer > 0
-                              ? `₹${product.sellingPriceCustomer}`
-                              : "-"}
-                          </td>
-                          <td className="px-4 py-3 text-center text-sm text-purple-700 hidden lg:table-cell">
-                            {product.sellingPriceDoctor > 0
-                              ? `₹${product.sellingPriceDoctor}`
-                              : "-"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-center gap-1 flex-wrap">
-                              <button
-                                onClick={() =>
-                                  setAddModal({ isOpen: true, product })
-                                }
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-green-100 text-green-800 rounded-lg text-[11px] font-semibold hover:bg-green-200 transition border border-green-200"
-                              >
-                                <Plus className="w-3 h-3" /> Add
-                              </button>
-                              <button
-                                onClick={() =>
-                                  setSaleModal({ isOpen: true, product })
-                                }
-                                disabled={isOut}
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-[11px] font-semibold hover:bg-blue-200 transition border border-blue-200 disabled:opacity-40"
-                              >
-                                <ShoppingCart className="w-3 h-3" /> Sell
-                              </button>
-                              <button
-                                onClick={() =>
-                                  setRemoveModal({ isOpen: true, product })
-                                }
-                                disabled={isOut}
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-red-100 text-red-800 rounded-lg text-[11px] font-semibold hover:bg-red-200 transition border border-red-200 disabled:opacity-40"
-                              >
-                                <Minus className="w-3 h-3" /> Remove
-                              </button>
-                              <button
-                                onClick={() => viewBatches(product)}
-                                className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-[11px] font-semibold hover:bg-gray-200 transition border border-gray-200"
-                              >
-                                <Eye className="w-3 h-3" /> Batches
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                              {isLow && (
+                                <AlertTriangle className="w-3 h-3 text-yellow-500 inline ml-1" />
+                              )}
+                              {isOut && (
+                                <span className="text-[10px] text-red-500 block">
+                                  OUT
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center text-sm text-slate-500 hidden lg:table-cell">
+                              {product.batches?.length || 0}
+                            </td>
+                            <td className="px-4 py-3 text-center text-sm font-semibold text-slate-900">
+                              {product.mrp > 0 ? `₹${product.mrp}` : "-"}
+                            </td>
+                            <td className="px-4 py-3 text-center text-sm text-blue-700 hidden lg:table-cell font-medium">
+                              {product.sellingPriceCustomer > 0
+                                ? `₹${product.sellingPriceCustomer}`
+                                : "-"}
+                            </td>
+                            <td className="px-4 py-3 text-center text-sm text-purple-700 hidden lg:table-cell font-medium">
+                              {product.sellingPriceDoctor > 0
+                                ? `₹${product.sellingPriceDoctor}`
+                                : "-"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-center gap-1 flex-wrap">
+                                <button
+                                  onClick={() =>
+                                    setAddModal({ isOpen: true, product })
+                                  }
+                                  className="flex items-center gap-1 px-2.5 py-1.5 bg-green-100 text-green-800 rounded-lg text-[11px] font-semibold hover:bg-green-200 transition border border-green-200"
+                                >
+                                  <Plus className="w-3 h-3" /> Add
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setSaleModal({ isOpen: true, product })
+                                  }
+                                  disabled={isOut}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-100 text-blue-800 rounded-lg text-[11px] font-semibold hover:bg-blue-200 transition border border-blue-200 disabled:opacity-40"
+                                >
+                                  <ShoppingCart className="w-3 h-3" /> Sell
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    setRemoveModal({ isOpen: true, product })
+                                  }
+                                  disabled={isOut}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 bg-red-100 text-red-800 rounded-lg text-[11px] font-semibold hover:bg-red-200 transition border border-red-200 disabled:opacity-40"
+                                >
+                                  <Minus className="w-3 h-3" /> Remove
+                                </button>
+                                <button
+                                  onClick={() => viewBatches(product)}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 text-slate-700 rounded-lg text-[11px] font-semibold hover:bg-gray-200 transition border border-gray-200"
+                                >
+                                  <Eye className="w-3 h-3" /> Batches
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-sm text-slate-600">
+                    Showing{" "}
+                    <span className="font-semibold text-slate-900">
+                      {(page - 1) * limit + 1}
+                    </span>{" "}
+                    to{" "}
+                    <span className="font-semibold text-slate-900">
+                      {Math.min(page * limit, totalRecords)}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-semibold text-slate-900">
+                      {totalRecords}
+                    </span>{" "}
+                    products
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-600">
+                        Rows per page:
+                      </span>
+                      <select
+                        value={limit}
+                        onChange={(e) => {
+                          setLimit(Number(e.target.value));
+                          setPage(1);
+                        }}
+                        className="px-2 py-1 border border-gray-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                      >
+                        <option value={10}>10</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={page === 1}
+                        className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-slate-700 hover:bg-gray-100 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-sm text-slate-600">
+                        Page {page} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setPage((prev) => Math.min(prev + 1, totalPages))
+                        }
+                        disabled={page >= totalPages}
+                        className="px-3 py-1 border border-gray-300 rounded-lg text-sm text-slate-700 hover:bg-gray-100 disabled:opacity-50 transition cursor-pointer disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </>
@@ -498,14 +591,14 @@ export default function StockManagerPage() {
       {/* Transaction History */}
       {view === "transactions" && (
         <>
-          <div className="bg-white rounded-xl shadow-sm border-2 border-gray-100 p-4">
+          <div className="bg-white rounded-xl shadow-sm border p-4">
             <div className="flex flex-wrap items-center gap-3">
               <select
                 value={transFilter.type}
                 onChange={(e) =>
                   setTransFilter({ ...transFilter, type: e.target.value })
                 }
-                className="px-3 py-2.5 border-2 border-gray-300 rounded-lg text-sm bg-gray-50 font-medium focus:outline-none focus:border-purple-500"
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="">All Types</option>
                 <option value="IN">⬇️ Stock IN</option>
@@ -516,7 +609,7 @@ export default function StockManagerPage() {
                 onChange={(e) =>
                   setTransFilter({ ...transFilter, reason: e.target.value })
                 }
-                className="px-3 py-2.5 border-2 border-gray-300 rounded-lg text-sm bg-gray-50 font-medium focus:outline-none focus:border-purple-500"
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="">All Reasons</option>
                 <option value="purchase">🛒 Purchase</option>
@@ -531,7 +624,7 @@ export default function StockManagerPage() {
                 onChange={(e) =>
                   setTransFilter({ ...transFilter, fromDate: e.target.value })
                 }
-                className="px-3 py-2.5 border-2 border-gray-300 rounded-lg text-sm bg-gray-50 focus:outline-none focus:border-purple-500"
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <span className="text-gray-400 text-sm font-medium">to</span>
               <input
@@ -540,12 +633,12 @@ export default function StockManagerPage() {
                 onChange={(e) =>
                   setTransFilter({ ...transFilter, toDate: e.target.value })
                 }
-                className="px-3 py-2.5 border-2 border-gray-300 rounded-lg text-sm bg-gray-50 focus:outline-none focus:border-purple-500"
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               <button
                 onClick={fetchTransactions}
                 disabled={transLoading}
-                className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition disabled:opacity-50 ml-auto"
+                className="flex items-center gap-2 px-5 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 transition disabled:opacity-50 ml-auto"
               >
                 <RefreshCw
                   className={`w-4 h-4 ${transLoading ? "animate-spin" : ""}`}
@@ -555,7 +648,7 @@ export default function StockManagerPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border-2 border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
             {transLoading ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
@@ -567,35 +660,35 @@ export default function StockManagerPage() {
                 <p className="text-gray-500">No transactions in this period</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full min-w-[1000px] text-left border-collapse">
                   <thead>
-                    <tr className="bg-gray-50 border-b-2 border-gray-200">
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase">
+                    <tr className="bg-gray-50 border-b">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                         Date
                       </th>
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                         Type
                       </th>
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                         Product
                       </th>
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase hidden md:table-cell">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider hidden md:table-cell">
                         Batch
                       </th>
-                      <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-center">
                         Qty
                       </th>
-                      <th className="text-right px-4 py-3 text-[10px] font-bold text-gray-500 uppercase hidden md:table-cell">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-right hidden md:table-cell">
                         Value
                       </th>
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">
                         Reason
                       </th>
-                      <th className="text-center px-4 py-3 text-[10px] font-bold text-gray-500 uppercase hidden lg:table-cell">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider text-center hidden lg:table-cell">
                         Stock
                       </th>
-                      <th className="text-left px-4 py-3 text-[10px] font-bold text-gray-500 uppercase hidden lg:table-cell">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider hidden lg:table-cell">
                         By
                       </th>
                     </tr>
@@ -611,7 +704,7 @@ export default function StockManagerPage() {
                           key={txn._id}
                           className="hover:bg-gray-50 transition"
                         >
-                          <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                          <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
                             {new Date(txn.transactionDate).toLocaleString(
                               "en-IN",
                               {
@@ -635,10 +728,10 @@ export default function StockManagerPage() {
                               {txn.type}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-sm font-semibold text-gray-800">
+                          <td className="px-4 py-3 text-sm font-semibold text-slate-900">
                             {productName}
                           </td>
-                          <td className="px-4 py-3 text-xs text-gray-500 hidden md:table-cell font-mono">
+                          <td className="px-4 py-3 text-xs text-slate-500 hidden md:table-cell font-mono">
                             {txn.batchNumber || "-"}
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -649,7 +742,7 @@ export default function StockManagerPage() {
                               {txn.quantity}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right text-sm text-gray-700 hidden md:table-cell font-medium">
+                          <td className="px-4 py-3 text-right text-sm text-slate-700 hidden md:table-cell font-medium">
                             ₹{txn.totalValue?.toLocaleString("en-IN")}
                           </td>
                           <td className="px-4 py-3">
@@ -659,25 +752,25 @@ export default function StockManagerPage() {
                               ${txn.reason === "sale" ? "bg-blue-50 text-blue-700 border-blue-200" : ""}
                               ${txn.reason === "damaged" ? "bg-orange-50 text-orange-700 border-orange-200" : ""}
                               ${txn.reason === "expired" ? "bg-red-50 text-red-700 border-red-200" : ""}
-                              ${!["purchase", "sale", "damaged", "expired"].includes(txn.reason) ? "bg-gray-50 text-gray-700 border-gray-200" : ""}
+                              ${!["purchase", "sale", "damaged", "expired"].includes(txn.reason) ? "bg-gray-50 text-slate-700 border-gray-200" : ""}
                             `}
                             >
                               {txn.reason?.replace(/_/g, " ")}
                             </span>
                             {txn.reasonNote && (
                               <p
-                                className="text-[10px] text-gray-400 mt-0.5 max-w-[200px] truncate"
+                                className="text-[10px] text-slate-400 mt-0.5 max-w-[200px] truncate"
                                 title={txn.reasonNote}
                               >
                                 {txn.reasonNote}
                               </p>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-center text-xs text-gray-500 hidden lg:table-cell">
+                          <td className="px-4 py-3 text-center text-xs text-slate-500 hidden lg:table-cell">
                             {txn.stockBefore} →{" "}
                             <strong>{txn.stockAfter}</strong>
                           </td>
-                          <td className="px-4 py-3 text-xs text-gray-500 hidden lg:table-cell">
+                          <td className="px-4 py-3 text-xs text-slate-500 hidden lg:table-cell">
                             {txn.performedBy?.name || "-"}
                           </td>
                         </tr>

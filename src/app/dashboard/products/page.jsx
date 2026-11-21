@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import productService from "@/services/productService";
 import referenceService from "@/services/referenceService";
 import Modal from "@/components/Modal";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import StatusBadge from "@/components/StatusBadge";
 import ProductForm, { emptyProductForm } from "@/components/forms/ProductForm";
-import ProductBulkImportModal from "@/components/ProductBulkImportModal"; // Imported Modal
+import ProductBulkImportModal from "@/components/ProductBulkImportModal";
 import {
   Plus,
   Pencil,
@@ -71,7 +70,7 @@ export default function ProductsPage() {
 
   // Form & Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false); // Bulk Import Modal State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState(emptyProductForm);
@@ -410,8 +409,8 @@ export default function ProductsPage() {
               type="text"
               value={search}
               onChange={(e) => handleFilterChange(setSearch, e.target.value)}
-              placeholder="Search by product name, remedy, HSN..."
-              className="w-full pl-10 pr-4 py-2.5 text-slate-900 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 bg-white"
+              placeholder="Search by product name, remedy, SKU, HSN..."
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-600 bg-white"
             />
             {search && (
               <button
@@ -565,7 +564,7 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {/* Table & List */}
+      {/* Responsive Table & Pagination (Visible on ALL screen sizes) */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
@@ -585,190 +584,203 @@ export default function ProductsPage() {
             </p>
           </div>
         ) : (
-          <>
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    <th className="px-4 py-3.5 w-10">#</th>
-                    <th className="px-4 py-3.5">Product Name</th>
-                    <th className="px-4 py-3.5">Company</th>
-                    <th className="px-4 py-3.5">Category</th>
-                    <th className="px-4 py-3.5">Size</th>
-                    <th className="px-4 py-3.5">Potency</th>
-                    <th className="px-4 py-3.5">Use Type / Indications</th>
-                    <th className="px-4 py-3.5 text-center">MRP</th>
-                    <th className="px-4 py-3.5 text-center">Stock</th>
-                    <th className="px-4 py-3.5 w-20">Status</th>
-                    <th className="px-4 py-3.5 text-right w-24">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 text-sm">
-                  {products.map((product, index) => {
-                    const isLow =
-                      product.stock <= (product.lowStockThreshold || 12);
-                    const companies = extractArray(product.company);
-                    const sizes = extractArray(product.size);
-                    const useTypes = getProductUseTypes(product);
-                    const globalIdx = (currentPage - 1) * limit + index + 1;
+          <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[1000px] text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5 w-10">#</th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5">Product Name</th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5">Company</th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5">Category</th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5">Size</th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5">Potency</th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5">
+                    Use Type / Indications
+                  </th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5 text-center">
+                    MRP
+                  </th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5 text-center">
+                    Stock
+                  </th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5 w-20">Status</th>
+                  <th className="px-3 py-3 sm:px-4 sm:py-3.5 text-right w-24">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm">
+                {products.map((product, index) => {
+                  const isLow =
+                    product.stock <= (product.lowStockThreshold || 12);
+                  const companies = extractArray(product.company);
+                  const sizes = extractArray(product.size);
+                  const useTypes = getProductUseTypes(product);
+                  const globalIdx = (currentPage - 1) * limit + index + 1;
 
-                    return (
-                      <tr
-                        key={product._id}
-                        className="hover:bg-gray-50/80 transition"
-                      >
-                        <td className="px-4 py-3.5 text-xs text-gray-400 font-medium">
-                          {globalIdx}
-                        </td>
+                  return (
+                    <tr
+                      key={product._id}
+                      className="hover:bg-gray-50/80 transition"
+                    >
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-xs text-gray-400 font-medium whitespace-nowrap">
+                        {globalIdx}
+                      </td>
 
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-2.5">
-                            {product.medicine ? (
-                              <Pill className="w-5 h-5 text-green-700 shrink-0" />
-                            ) : (
-                              <FlaskConical className="w-5 h-5 text-blue-600 shrink-0" />
-                            )}
-                            <p className="font-semibold text-gray-900 leading-snug">
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          {product.medicine ? (
+                            <Pill className="w-5 h-5 text-green-700 shrink-0" />
+                          ) : (
+                            <FlaskConical className="w-5 h-5 text-blue-600 shrink-0" />
+                          )}
+                          <div>
+                            <p className="font-semibold text-gray-900 leading-snug whitespace-nowrap">
                               {getDisplayName(product)}
                             </p>
+                            {product.sku && (
+                              <p className="text-[11px] font-mono text-gray-400 mt-0.5 whitespace-nowrap">
+                                {product.sku}
+                              </p>
+                            )}
                           </div>
-                        </td>
+                        </div>
+                      </td>
 
-                        <td className="px-4 py-3.5 text-gray-700">
-                          {companies.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {companies.map((c, i) => (
-                                <span
-                                  key={c?._id || c?.id || i}
-                                  className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded text-xs"
-                                >
-                                  {typeof c === "object" ? c.name || "-" : c}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3.5 text-gray-700">
-                          {typeof product.category === "object"
-                            ? product.category?.name || "-"
-                            : product.category || "-"}
-                        </td>
-
-                        <td className="px-4 py-3.5 text-gray-700">
-                          {sizes.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {sizes.map((s, i) => (
-                                <span
-                                  key={s?._id || s?.id || i}
-                                  className="bg-teal-50 text-teal-800 px-2 py-0.5 rounded text-xs font-medium"
-                                >
-                                  {typeof s === "object" ? s.name || "-" : s}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          {product.potency ? (
-                            <span className="bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 rounded text-xs font-semibold">
-                              {typeof product.potency === "object"
-                                ? product.potency?.name || "-"
-                                : product.potency}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3.5">
-                          {useTypes.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {useTypes.map((ut) => (
-                                <span
-                                  key={ut._id || ut}
-                                  className="inline-flex items-center text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60 px-1.5 py-0.5 rounded"
-                                >
-                                  {ut.name || ut}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3.5 text-center font-medium text-gray-900">
-                          {product.mrp > 0 ? (
-                            `₹${product.mrp}`
-                          ) : (
-                            <span className="text-xs text-gray-400">
-                              Unpriced
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3.5 text-center">
-                          <div className="inline-flex items-center gap-1">
-                            <span
-                              className={`font-bold ${
-                                product.stock === 0
-                                  ? "text-red-600"
-                                  : isLow
-                                    ? "text-amber-600"
-                                    : "text-gray-800"
-                              }`}
-                            >
-                              {product.stock}
-                            </span>
-                            {product.stock === 0 ? (
-                              <AlertTriangle
-                                className="w-3.5 h-3.5 text-red-500"
-                                title="Out of Stock"
-                              />
-                            ) : isLow ? (
-                              <AlertTriangle
-                                className="w-3.5 h-3.5 text-amber-500"
-                                title="Low Stock Alert"
-                              />
-                            ) : null}
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-gray-700">
+                        {companies.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {companies.map((c, i) => (
+                              <span
+                                key={c?._id || c?.id || i}
+                                className="bg-gray-100 text-gray-800 px-2 py-0.5 rounded text-xs whitespace-nowrap"
+                              >
+                                {typeof c === "object" ? c.name || "-" : c}
+                              </span>
+                            ))}
                           </div>
-                        </td>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
 
-                        <td className="px-4 py-3.5">
-                          <StatusBadge isActive={product.isActive} />
-                        </td>
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-gray-700 whitespace-nowrap">
+                        {typeof product.category === "object"
+                          ? product.category?.name || "-"
+                          : product.category || "-"}
+                      </td>
 
-                        <td className="px-4 py-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => openEditModal(product)}
-                              className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition"
-                              title="Edit product parameters"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => openDeleteDialog(product)}
-                              className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition"
-                              title="Delete product definition"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-gray-700">
+                        {sizes.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {sizes.map((s, i) => (
+                              <span
+                                key={s?._id || s?.id || i}
+                                className="bg-teal-50 text-teal-800 px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap"
+                              >
+                                {typeof s === "object" ? s.name || "-" : s}
+                              </span>
+                            ))}
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5 whitespace-nowrap">
+                        {product.potency ? (
+                          <span className="bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 rounded text-xs font-semibold">
+                            {typeof product.potency === "object"
+                              ? product.potency?.name || "-"
+                              : product.potency}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5">
+                        {useTypes.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {useTypes.map((ut) => (
+                              <span
+                                key={ut._id || ut}
+                                className="inline-flex items-center text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60 px-1.5 py-0.5 rounded whitespace-nowrap"
+                              >
+                                {ut.name || ut}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-center font-medium text-gray-900 whitespace-nowrap">
+                        {product.mrp > 0 ? (
+                          `₹${product.mrp}`
+                        ) : (
+                          <span className="text-xs text-gray-400">
+                            Unpriced
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-center whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1">
+                          <span
+                            className={`font-bold ${
+                              product.stock === 0
+                                ? "text-red-600"
+                                : isLow
+                                  ? "text-amber-600"
+                                  : "text-gray-800"
+                            }`}
+                          >
+                            {product.stock}
+                          </span>
+                          {product.stock === 0 ? (
+                            <AlertTriangle
+                              className="w-3.5 h-3.5 text-red-500"
+                              title="Out of Stock"
+                            />
+                          ) : isLow ? (
+                            <AlertTriangle
+                              className="w-3.5 h-3.5 text-amber-500"
+                              title="Low Stock Alert"
+                            />
+                          ) : null}
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5 whitespace-nowrap">
+                        <StatusBadge isActive={product.isActive} />
+                      </td>
+
+                      <td className="px-3 py-3 sm:px-4 sm:py-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => openEditModal(product)}
+                            className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition"
+                            title="Edit product parameters"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => openDeleteDialog(product)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition"
+                            title="Delete product definition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {/* Pagination Controls */}
@@ -878,13 +890,6 @@ export default function ProductsPage() {
           errors={formErrors}
         />
       </Modal>
-
-      {/* Product Bulk Import Modal */}
-      <ProductBulkImportModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onImport={handleBulkImport}
-      />
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog
