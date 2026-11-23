@@ -166,33 +166,96 @@ export default function ProductsPage() {
   };
 
   // Execute Bulk Import logic
-  const handleBulkImport = async (rows) => {
-    try {
-      for (const row of rows) {
-        const isMedicine = row.productType === "medicine";
-        const payload = {
-          productType: row.productType || "medicine",
-          medicine: isMedicine ? row.medicine : undefined,
-          productName: !isMedicine ? row.productName?.trim() : undefined,
-          company: row.company || row.companies || [],
-          category: row.category || row.categories?.[0] || "",
-          size: row.size || row.sizes || [],
-          potency: isMedicine
-            ? row.potency || row.potencies?.[0] || undefined
-            : undefined,
-          useTypes: row.useTypes || [],
-          lowStockThreshold: Number(row.lowStockThreshold) || 12,
-          hsnCode: row.hsnCode?.trim() || "",
-        };
-        await productService.create(payload);
+  
+const handleBulkImport = async (rows) => {
+  try {
+    let totalCreated = 0;
+    let totalSkipped = 0;
+    const errors = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+
+      const isMedicine = row.productType !== "general";
+
+      const payload = {
+        medicine: isMedicine ? row.medicine : null,
+        productName: !isMedicine
+          ? row.productName?.trim() || ""
+          : "",
+
+        companies: row.company || row.companies || [],
+
+        categories: row.category
+          ? [row.category]
+          : row.categories || [],
+
+        sizes: row.size || row.sizes || [],
+
+        potencies: isMedicine
+          ? row.potency
+            ? [row.potency]
+            : row.potencies || []
+          : [],
+
+        useTypes: row.useTypes || [],
+
+        lowStockThreshold:
+          Number(row.lowStockThreshold) || 12,
+
+        hsnCode: row.hsnCode?.trim() || "",
+      };
+
+      try {
+        const res = await productService.create(payload);
+
+        if (res.success) {
+          totalCreated += res.summary?.created || 0;
+          totalSkipped += res.summary?.skipped || 0;
+        } else {
+          errors.push({
+            row: i + 1,
+            message: res.message || "Import failed",
+          });
+        }
+      } catch (error) {
+        errors.push({
+          row: i + 1,
+          message:
+            error.response?.data?.message ||
+            error.message ||
+            "Import failed",
+        });
       }
-      setIsImportModalOpen(false);
-      fetchProducts();
-    } catch (err) {
-      console.error("Failed to bulk import products:", err);
-      throw err;
     }
-  };
+
+    if (totalCreated > 0) {
+      toast.success(`${totalCreated} product variants created`);
+    }
+
+    if (totalSkipped > 0) {
+      toast(`${totalSkipped} variants skipped`);
+    }
+
+    if (errors.length > 0) {
+      console.error("Bulk import errors:", errors);
+
+      toast.error(
+        `${errors.length} row(s) failed during import`
+      );
+
+      return;
+    }
+
+    setIsImportModalOpen(false);
+    await fetchProducts();
+
+  } catch (err) {
+    console.error("Bulk import failed:", err);
+    toast.error("Bulk import failed");
+    throw err;
+  }
+};
 
   const openAddModal = () => {
     setIsEditMode(false);
